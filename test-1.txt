@@ -1,1 +1,6 @@
 print("Hello")
+i = 10
+print(i)
+for a in range(5):
+  print(a, end = "")
+print("Thank you")
