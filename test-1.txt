@@ -1,5 +1,5 @@
 import time
 
 
-print("Hello Zhimin")
+print("Hello Zhimin, Hope you are going good")
 time.sleep(10)
