@@ -1,5 +1,41 @@
+# Use custom profile with specific cookie settings
+from selenium.webdriver.firefox.options import Options
+from selenium import webdriver
 import time
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import browser_cookie3
 
 
-print("Hello Zhimin, Hope you are going good")
+options = Options()
+options.set_preference("network.cookie.cookieBehavior", 0)  # Accept all cookies
+options.set_preference("privacy.clearOnShutdown.cookies", False)
+driver = webdriver.Firefox(options=options)
+cj = browser_cookie3.firefox()
+
+
+def add_cookies():
+    try:
+        driver.get("https://midway-auth.amazon.com")
+        WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//*[text()='Sign in']")))
+        driver.delete_all_cookies()
+        for FX_cookie in cj:
+            try:
+                if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+                    cookie_dict = {'domain': FX_cookie.domain,
+                                'name': FX_cookie.name,
+                                'value': FX_cookie.value}
+                    driver.add_cookie(cookie_dict)
+            except : pass
+        driver.get("about:blank")
+
+    except : 
+        driver.delete_all_cookies()
+        print("Kindly enter your login details, cant copy from firefox")
+
+add_cookies()
+driver.get("https://midway-auth.amazon.com")
+        
 time.sleep(10)
+driver.quit()
