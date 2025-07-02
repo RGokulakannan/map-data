@@ -1,2 +1,1 @@
-print("Hello .. Gokul")
-time.sleep(10)
+Hi Pravin
