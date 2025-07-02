@@ -59,7 +59,7 @@ def upload_in_UI(f1):
         task = ""
         driver.get("about:blank")
         driver.get("https://removals-central-eu.removal.scot.amazon.dev/create/file")
-        WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "createRemovalsViaFileFormButton")))
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "createRemovalsViaFileFormButton")))
         time.sleep(2)
         driver.find_element(By.ID, "uploadFilePath").send_keys(str(f1))
         dropdown = driver.find_element(By.ID, "operationReason")
