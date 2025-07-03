@@ -3,6 +3,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
 print("This is testing model")
+
+
 def move_all_files(src_folder, dest_folder):
     os.makedirs(dest_folder, exist_ok=True)  # Create destination if it doesn't exist
     for filename in os.listdir(src_folder):
@@ -30,6 +32,27 @@ def open_chrome():
     })
     driver = webdriver.Chrome(service=service, options=options)
     return driver
+def split_df_into_sheets_by_cost(df, cost_col='Cost per Unit', qty_col = "Quantity"):
+    sheets = []
+    current_chunk = []
+    current_sum = 0
+
+    for _, row in df.iterrows():
+        cost = row[cost_col] * row[qty_col]
+        if current_sum + cost > max_cost:
+            # Save current chunk and reset
+            sheets.append(pd.DataFrame(current_chunk))
+            current_chunk = [row]
+            current_sum = cost
+        else:
+            current_chunk.append(row)
+            current_sum += cost
+    
+    # Append last chunk
+    if current_chunk:
+        sheets.append(pd.DataFrame(current_chunk))
+
+    return sheets
 def removeAllFiles(folder_loc):
     files = glob.glob(os.path.join(folder_loc, '*'))
     for file in files:
@@ -96,21 +119,51 @@ os.makedirs(dataDir, exist_ok=True)
 removeAllFiles(downloadDir)
 removeAllFiles(dataDir)
 
+
+max_cost = int(input("Enter the total cost per file : "))
+F = pd.read_excel("input_split.xlsx")
+sheets = split_df_into_sheets_by_cost(F, cost_col='Cost per Unit', qty_col="Quantity")
+
+ct = 1
+for a in sheets:
+    a.to_excel(f"data\\Output-{ct}.xlsx", index = False)
+    ct += 1
+
+
 driver = open_chrome()
 
+out_df = {
+    "file" : [],
+    "id"    : []
+}
 
-taskIds = ['110497461','110497521','110497551','110497581','110497611','110497641','110497671','110497711','110497751','110497791',
-    '110497821','110497851','110497881','110497911','110497941','110497961','110497991','110498011','110498041','110498061',
-    '110498091','110498131','110498161','110498191','110498221','110498261','110498281','110498331','110498351','110498391',
-    '110498421','110498431','110498461','110498481','110498511','110498541','110498571','110498611','110498641','110498661',
-    '110498701','110498731','110498751','110498771','110498811','110498841','110498861','110498901']
+dataDir = Path(dataDir)
+
+# Count all files (not directories) recursively
+total_files = sum(1 for file in dataDir.rglob('*') if file.is_file())
+print(f"Total files: {total_files}")
+
+for file_path in dataDir.iterdir():
+    if file_path.is_file():
+        print(f"Processing: {file_path.name}", total_files)
+        id1 = upload_in_UI(file_path)    
+        out_df["file"].append(file_path.name)
+        out_df['id'].append(id1)
+        total_files -= 1
+out_df = pd.DataFrame(out_df)
+out_df.to_excel("splitByCost_Output.xlsx", index=False)
 
 out_dict = {
     "id" : [],
     "removal_id" : []
 }
 
-for taskId in taskIds:
+count = len(out_df["id"])
+print(f"Total count: {count}")
+
+for taskId in out_df["id"]:
+    print(count, end="-")
+    count-=1
     driver.get("about:blank")
     driver.get(f"https://removals-central-eu.removal.scot.amazon.dev/create/file/{taskId}")
     WebDriverWait(driver, 40, poll_frequency=2).until(EC.visibility_of_element_located((By.ID, "create_removals_via_file_result_main")))
@@ -136,5 +189,5 @@ source_folder = thisDir + "\\download"
 output_excel = "consolidated.xlsx"
 consolidate_excel_files(source_folder, output_excel)
 
-
+print(f"DataFrame is split into {len(sheets)} workbooks with each workbook total cost < 1 million.")
 driver.quit()
