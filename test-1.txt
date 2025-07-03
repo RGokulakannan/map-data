@@ -2,8 +2,7 @@
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-print("This is testing model")
-
+print("This is testing model - Removal of Mahesh, Reya")
 
 def move_all_files(src_folder, dest_folder):
     os.makedirs(dest_folder, exist_ok=True)  # Create destination if it doesn't exist
