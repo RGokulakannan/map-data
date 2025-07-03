@@ -160,7 +160,7 @@ out_dict = {
 
 count = len(out_df["id"])
 print(f"Total count: {count}")
-
+input("Is all task completed ?")
 for taskId in out_df["id"]:
     print(count, end="-")
     count-=1
