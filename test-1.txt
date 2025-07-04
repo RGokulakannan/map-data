@@ -1,1 +1,23 @@
+print("Hello")
+
+msg = input("Please drop a message with your contact")
+
+# Replace this with your form's formResponse URL
+url = 'https://docs.google.com/forms/d/15J2M682LcVyXKgTs8tUSMO7vY1uSytfTBwxi2vD0CwE/formResponse'
+
+# Replace with actual entry IDs from your form
+form_data = {
+    'entry.1736179042': msg   
+}
+
+response = requests.post(url, data=form_data)
+
+# Check the response (should return 200 even on success)
+print("Status Code:", response.status_code)
+
+if response.status_code == 200:
+    print("Form submitted successfully!")
+else:
+    print("Something went wrong.")
+
 
