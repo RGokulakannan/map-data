@@ -10,12 +10,9 @@ form_data = {
 
 response = requests.post(url, data=form_data)
 
-# Check the response (should return 200 even on success)
-print("Status Code:", response.status_code)
-
 if response.status_code == 200:
-    print("Form submitted successfully!")
+    print("Response recorded !")
 else:
-    print("Something went wrong.")
+    print("Response not recorded")
 
 
