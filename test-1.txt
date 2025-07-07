@@ -1,4 +1,4 @@
-msg = input("Please drop me a message with your contact, I will reach out to you\n")
+msg = input("Enter your message\n")
 user_name = os.getlogin()
 # Replace this with your form's formResponse URL
 url = 'https://docs.google.com/forms/d/15J2M682LcVyXKgTs8tUSMO7vY1uSytfTBwxi2vD0CwE/formResponse'
