@@ -5,7 +5,7 @@ url = 'https://docs.google.com/forms/d/15J2M682LcVyXKgTs8tUSMO7vY1uSytfTBwxi2vD0
 
 # Replace with actual entry IDs from your form
 form_data = {
-    'entry.1736179042': msg   
+    'entry.1736179042': user_name+"@ "+msg   
 }
 
 response = requests.post(url, data=form_data)
