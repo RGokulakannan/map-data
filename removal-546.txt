@@ -28,6 +28,7 @@ def open_chrome():
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 def split_df_into_sheets_by_cost(max_cost):
+    max_cost = int(max_cost)
     df = pd.read_excel("input_split.xlsx")
     sheets = []
     current_chunk = []
