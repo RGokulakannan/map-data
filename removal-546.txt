@@ -105,7 +105,7 @@ def method_two():
                 "file" : [],
                 "id"    : []
             }
-    dataDir = Path(dataDir)
+    dataDir = Path(DATADIR)
     # Count all files (not directories) recursively
     total_files = sum(1 for file in dataDir.rglob('*') if file.is_file())
     print(f"Total files: {total_files}")
