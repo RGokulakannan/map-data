@@ -1,16 +1,195 @@
-msg = input("Enter your message\n")
-user_name = os.getlogin()
-# Replace this with your form's formResponse URL
-url = 'https://docs.google.com/forms/d/15J2M682LcVyXKgTs8tUSMO7vY1uSytfTBwxi2vD0CwE/formResponse'
+from selenium.webdriver.chrome.options import Options
 
-# Replace with actual entry IDs from your form
-form_data = {
-    'entry.1736179042': user_name+"@ "+msg   
+user_name = os.getlogin()
+
+
+# Function for cookie management
+def cookie_management():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(options=options)
+    driver.maximize_window()
+    return driver
+
+driver = cookie_management()
+
+start_time = time.time()
+
+# program begins
+
+# Read input data
+df = pd.read_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\input.xlsx')
+
+data_out = {
+    "Asin":[],
+    "Date Submitted" : [],
+    "PO Id" : [],
+    "Country" : [],
+    "FC" : [],
+    "Vendor" : [],
+    "Order Type" : [],
+    "Order Date" : [],
+    "IOG" : [],
+    "Condition" : [],
+    "Qty Sub." : [],
+    "Qty Cnf." : [],
+    "Qty Exp." : [],
+    "Qty Canc." : [],
+    "Qty Rcvd" : [],
+    "Qty Unrcvd" : [],
+    "Last Recv" : [],
+    "First Recv" : [],
+    "Last Shipment Status":[],
+    "Is HCPO" : [],
+    "Price" : [],
+    "Discount":[],
+    'Cost' : [],
+    'Handler' : [],
+    'EDD' : []
 }
 
-response = requests.post(url, data=form_data)
+data_out_li = list(data_out.keys())
+data_out_li.pop(0)
+data_out_li.pop(0)
 
-if response.status_code == 200:
-    print("Response recorded !")
-else:
-    print("Response not recorded")
+for a,b in df.iterrows():
+    
+    # first try block
+    try:
+
+        print('Processing Asin : ',b['asin'],'MP : ',b['mp'],'Remaining : ',len(df)-a,end=' ')
+        
+        match b['option']:
+            
+            case 1 :
+                date_sub = "Today"
+            case 2 :
+                date_sub = 'Within the Last Week'
+            case 3 :
+                date_sub = 'Within the Last Month'
+            case _:
+                date_sub = 'not found'
+            
+        # Launch home page
+        driver.get('https://procurementportal-eu.corp.amazon.com/bp/home')
+        WebDriverWait(driver,120).until(EC.visibility_of_element_located((By.ID,'AsinSearchBox')))
+        
+        driver.find_element(By.ID,'AsinSearchBox').send_keys(b['asin'])
+        time.sleep(1)
+        driver.execute_script("window.scrollBy(0, 400);")
+        
+        cli = driver.execute_script('return document.querySelector("#ViewAsinSearch_AsinBox > kat-dropdown").shadowRoot.querySelector("#katal-id-4")')
+        
+        driver.execute_script('arguments[0].click();',cli)
+        
+        cli_1 = driver.execute_script('return document.querySelector("#ViewAsinSearch_AsinBox > kat-dropdown").shadowRoot.querySelector("div > div:nth-child(3) > div > div.option-inner-container > div > slot:nth-child(2)")')
+        
+        cli_2 = cli_1.find_elements(By.TAG_NAME,'kat-option')
+        
+        for c in cli_2:
+            if((c.text).lower() == (b['mp']).lower()):
+                c.click()
+                break
+        
+        driver.find_element(By.XPATH,'/html/body/div/div/div/div/div[2]/div[2]/div/div/div/div/div[1]/div/div/div[2]/div/div/div[2]/div/table/tbody/tr[1]/td[2]/kat-button').click()
+        
+        tab_head = WebDriverWait(driver,60).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div/div/div[2]/div/div[4]/div/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div/div/div/div/div/div/div[1]/div/div')))
+        
+        # Clicking on choosing month time range
+        last_month = driver.execute_script(f'return document.querySelector("#AsinSearch_POs_Form_form_submittedDateRange_presetOptions > kat-radiobutton-group > div > kat-radiobutton:nth-child({b['option']})")')
+        last_month.click()
+        
+        # submit button
+        submit = driver.execute_script('return document.querySelector("#AsinSearch_POs_Form_form_submit > kat-button").shadowRoot.querySelector("button")')
+        submit.click()
+        
+        #driver.execute_script('arguments[0].click();',dr_dn)
+        tab_head = WebDriverWait(driver,60).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div/div/div[2]/div/div[4]/div/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div/div/div/div/div/div/div[1]/div/div')))
+        tab_data = driver.execute_script('return document.querySelector("#AsinSearch_Pos_Grid_Body > div > div:nth-child(1) > div > div > div > div > div > div > div:nth-child(2) > div > div")')
+        
+        if tab_data is None :
+            
+            for s in data_out_li:
+                data_out[s].append("")
+            
+            data_out['Asin'].append(b['asin'])
+            data_out['Date Submitted'].append(date_sub)
+            print('Not data')
+            continue
+            
+        
+        #tab_data_1 = tab_data.find_elements(By.TAG_NAME,'span')
+        tab_data_1 = tab_data.find_elements(By.CLASS_NAME,'react-grid-Cell__value')
+        
+        # Right Portion in table
+        x = 0
+        for c in tab_data_1:
+            if(x%23<8):
+                data_out[data_out_li[x%23]].append(c.text)
+            if(x%23 == 1):    
+                data_out['Asin'].append(b['asin'])
+                data_out['Date Submitted'].append(date_sub)
+            x+=1
+
+        scroll = driver.execute_script('return document.querySelector("#AsinSearch_Pos_Grid_Body > div > div:nth-child(2) > div > div > div > div > div > div:nth-child(2) > div > div")')
+        driver.execute_script("arguments[0].scrollBy(1000, 0);",scroll)
+        
+        # Left portion in table
+        x = 0
+        for c in tab_data_1:
+            if(x%23>7):
+                data_out[data_out_li[x%23]].append(c.text)
+            x+=1
+
+
+        # storing data in excel file for every 10 cycle
+        if(a%9 == 9):
+            df_1 = pd.DataFrame(data_out)
+            df_1.to_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\output.xlsx',index=False)
+
+        print('Success')
+        
+    except:
+        
+        print('Failed on ',b['asin'],'MP : ',b['mp'])
+        
+        for s in data_out_li:
+                data_out[s].append("")
+            
+        data_out['Asin'].append(b['asin'])
+        data_out['Date Submitted'].append(date_sub)
+        
+df_1 = pd.DataFrame(data_out)
+df_1.to_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\output.xlsx',index=False)
+driver.quit()
+
+# Programs end
+
+end_time = time.time()
+duration = end_time - start_time
+print("Time duration of program : ", round(duration,2), "seconds")
+
+time.sleep(5)
+
+print('End')
+sys.exit(0)
+os.kill(os.getpid(),15)
+
+    
+
+
