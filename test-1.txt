@@ -31,7 +31,7 @@ start_time = time.time()
 # program begins
 
 # Read input data
-df = pd.read_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\input.xlsx')
+df = pd.read_excel(f'input.xlsx')
 
 data_out = {
     "Asin":[],
@@ -158,7 +158,7 @@ for a,b in df.iterrows():
         # storing data in excel file for every 10 cycle
         if(a%9 == 9):
             df_1 = pd.DataFrame(data_out)
-            df_1.to_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\output.xlsx',index=False)
+            df_1.to_excel(f'output.xlsx',index=False)
 
         print('Success')
         
@@ -173,7 +173,7 @@ for a,b in df.iterrows():
         data_out['Date Submitted'].append(date_sub)
         
 df_1 = pd.DataFrame(data_out)
-df_1.to_excel(f'C:\\Users\\{user_name}\\Documents\\Automation\\po_asinstat\\output.xlsx',index=False)
+df_1.to_excel(f'output.xlsx',index=False)
 driver.quit()
 
 # Programs end
