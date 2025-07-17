@@ -2,140 +2,51 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 
-user_name = os.getlogin()
+username = os.getlogin()
 
-msg1 = r"""Dear Valued Partner,
-
-We are committed to improving our Direct Fulfillment (DF) program and ensuring effective communication with our vendors. To help us serve you better, we would like to collect your valuable feedback through a brief survey.
-
-This short survey will:
-
-•	Take approximately 3 minutes to complete
-•	Help us verify correct points of contact
-•	Measure your satisfaction with the DF program
-•	Identify areas where you need additional support
-•	Guide our communication strategy
-
-The survey link will be included in all our DF-related email communications for easy access. Your responses will be subject to Amazon's Privacy Policy and used to enhance our program delivery and communication effectiveness.
-
-To begin the survey, please click here: https://amazonexteu.qualtrics.com/jfe/form/SV_4Tqu6sztNbHxr8i
-
-Thank you for your partnership and taking the time to help us improve."""
-msg2 =r"""Best regards, 
-
-Amazon Direct Fulfillment Team"""
-
-def open_chrome():
+def cookie_management():
     profile = 'Default'
-    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    profile_path = f'C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
     options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     options.add_argument(f'user-data-dir={profile_path}')
     options.add_argument(f'--profile-directory={profile}')
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--start-maximized')
-    # options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-gpu')
-    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    service = Service("C:\\Users\\"+username+"\\driver\\chromedriver.exe")
+    download_path = "C:\\Users\\"+username+"\\Desktop\\CPLAN\\Downloads"
+    options.add_experimental_option("prefs",
+    {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
     driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
     return driver
 
-driver = open_chrome()
+driver = cookie_management()
 
-wb = openpyxl.Workbook()
-outSheet = wb.active
-outSheet.append(["Email", "Mail-Sent", "is Spoof", "Paragon-ID"])
-df = pd.read_excel("input_v2.xlsx")
+# Program begins()
+df = pd.read_excel("input.xlsx")
 
-for index, row in df.iterrows():
-    isMailSent = spoofStatus = ""
-    try:
-        driver.get("about:blank")
-        driver.get("https://paragon-eu.amazon.com/hz/create-case")
-        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "katal-id-0"))).send_keys(row['email'])
-        time.sleep(2)
-        ct = 0
-        while ct<40 :
-            c1 = driver.find_elements(By.XPATH, "//kat-alert[not(@dismissible)]")
-            c2 = driver.find_elements(By.CLASS_NAME, "cursor-type-pointer")
-            if c1 or c2: break
-            time.sleep(1)
-            ct+=1
-        
-        if c2 : c2[0].click()
-        
-        if c1:
-            driver.get("about:blank")
-            driver.get("https://paragon-eu.amazon.com/hz/create-case")
-            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "katal-id-0"))).send_keys("loluwa@amazon.lu")
-            
-            ct = 0
-            while ct<40 :
-                c1 = driver.find_elements(By.XPATH, "//kat-alert[not(@dismissible)]")
-                c2 = driver.find_elements(By.CLASS_NAME, "cursor-type-pointer")
-                if c1 or c2: break
-                time.sleep(1)
-                ct+=1
-            
-            if c1 or ct>39: 
-                print("Spoofing failed on loluwa@amazon.lu")
-                continue
-            
-            c2[0].click()
-            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "input-group-tags"))).click()
-            driver.find_element(By.ID, "input-group-tags").send_keys(Keys.BACKSPACE)
-            driver.find_element(By.ID, "input-group-tags").send_keys(row['email'])
-            driver.find_element(By.ID, "input-group-tags").send_keys(Keys.ENTER)
-            spoofStatus = "Yes"
-            
-        if ct>39: 
-            print(row['email'], "missing suggestion")
-            continue    
-        
-        
-        WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.ID, "katal-id-6"))).send_keys("DF Vendor Experience Survey Request")
-        pyperclip.copy(msg1)
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Insert email body here']").click()
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Insert email body here']").send_keys(Keys.CONTROL, 'v')
-        pyperclip.copy("")
-        driver.find_element(By.XPATH, "//kat-button[@label='Custom signature']").click()
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Add signature here']").click()
-        pyperclip.copy(msg2)
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Add signature here']").send_keys(Keys.CONTROL, 'a')
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Add signature here']").send_keys(Keys.DELETE)
-        driver.find_element(By.XPATH, "//textarea[@placeholder='Add signature here']").send_keys(Keys.CONTROL, 'v')
-        pyperclip.copy("")
-        
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+for index, row in df.items():
+    driver.get("about:blank")
+    driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={row['po']}&tabId=summary")
+    WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Undo']"))).click()
+    time.sleep(1)
+    bt = driver.find_elements(By.XPATH, "//button[@id='bp_uncomplete_po'][div[not(@class='greytext')]]")
+    if bt:
+        bt[0].click()
         time.sleep(1)
-        driver.execute_script('document.querySelector("#katal-id-15").click();')
-        time.sleep(1)
-        driver.find_element(By.XPATH, "//button[text()='Review Case']").click()
-        time.sleep(2)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(1)
-        driver.find_element(By.XPATH, "//kat-button[@label='Create Case']").click()
-        
-        # WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.ID, "ActionsMenu")))
-        # time.sleep(2)
-        
-        # actions_menu = driver.find_element(By.ID, "ActionsMenu")
-        # actions = ActionChains(driver)
-        # actions.move_to_element(actions_menu).perform()
-        # time.sleep(1)
-        # driver.find_element(By.XPATH, "//button[text()='Resolve Case']").click()
-        # time.sleep(2)
-        # driver.find_elements(By.XPATH, "//button[text()='Resolve Case']")[1].click()
-        
-        isMailSent = "Y"
-        WebDriverWait(driver, 10, poll_frequency=1).until(EC.url_contains("="))
-        time.sleep(1)
-        print(row['email'], driver.current_url.split("=")[-1], index)
-        
-    finally:
-        outSheet.append([row['email'], isMailSent, spoofStatus, driver.current_url.split("=")[-1]])
-    
-wb.save("Output.xlsx")    
+        WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Yes']"))).click()
+        time.sleep(3)
+        print(f"PO {row['po']} uncompleted successfully.")
+    else:
+        print(f"PO {row['po']} is already uncompleted or not found.")
+
 driver.quit()
-
+print("All POs processed.")
