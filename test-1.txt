@@ -33,7 +33,8 @@ driver = cookie_management()
 # Program begins()
 df = pd.read_excel("input.xlsx")
 
-for index, row in df.items():
+for index, row in df.iterrows():
+    print(f"Processing PO: {row['po']}", index)
     driver.get("about:blank")
     driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={row['po']}&tabId=summary")
     WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Undo']"))).click()
