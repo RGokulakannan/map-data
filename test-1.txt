@@ -36,13 +36,13 @@ df = pd.read_excel("input.xlsx")
 for index, row in df.items():
     driver.get("about:blank")
     driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={row['po']}&tabId=summary")
-    WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Undo']"))).click()
+    WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Undo']"))).click()
     time.sleep(1)
     bt = driver.find_elements(By.XPATH, "//button[@id='bp_uncomplete_po'][div[not(@class='greytext')]]")
     if bt:
         bt[0].click()
         time.sleep(1)
-        WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Yes']"))).click()
+        WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Yes']"))).click()
         time.sleep(3)
         print(f"PO {row['po']} uncompleted successfully.")
     else:
