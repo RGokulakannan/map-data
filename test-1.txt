@@ -13,8 +13,8 @@ startTime = time.time()
 
 user_name = os.getlogin()
 
-# service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
-driver = webdriver.Chrome() # service=service
+service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
+driver = webdriver.Chrome(service=service)
 
 driver.maximize_window()
 
