@@ -1,53 +1,137 @@
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+import os
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import browser_cookie3
 from selenium.webdriver.common.action_chains import ActionChains
 
-username = os.getlogin()
+startTime = time.time()
 
-def cookie_management():
-    profile = 'Default'
-    profile_path = f'C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
-    options = Options()
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    options.add_argument(f'user-data-dir={profile_path}')
-    options.add_argument(f'--profile-directory={profile}')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-gpu')
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    service = Service("C:\\Users\\"+username+"\\driver\\chromedriver.exe")
-    download_path = "C:\\Users\\"+username+"\\Desktop\\CPLAN\\Downloads"
-    options.add_experimental_option("prefs",
-    {
-        "download.default_directory": download_path,
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
-    })
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.maximize_window()
-    return driver
+cookies = browser_cookie3.firefox()
+user_name = os.getlogin()
 
-driver = cookie_management()
+# service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
+driver = webdriver.Chrome() # service=service
 
-# Program begins()
-df = pd.read_excel("input.xlsx")
+driver.maximize_window()
+driver.get('https://midway-auth.amazon.com/')
+driver.delete_all_cookies()
 
-for index, row in df.iterrows():
-    print(f"Processing PO: {row['po']}", index)
-    driver.get("about:blank")
-    driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={row['po']}&tabId=summary")
-    WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Undo']"))).click()
-    time.sleep(1)
-    bt = driver.find_elements(By.XPATH, "//button[@id='bp_uncomplete_po'][div[not(@class='greytext')]]")
-    if bt:
-        bt[0].click()
-        time.sleep(1)
-        WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Yes']"))).click()
-        time.sleep(3)
-        print(f"PO {row['po']} uncompleted successfully.")
+for cookie in cookies:
+    if cookie.domain in ['.amazon.com', '.midway-auth.amazon.com', 'midway-auth.amazon.com']:
+        try:
+            cookie_dict = {
+                'name': cookie.name,
+                'value': cookie.value,
+                'domain': cookie.domain
+                #'path': cookie.path
+                #'secure': bool(cookie.secure),  # Ensure secure is a boolean
+                #'httpOnly': cookie.has_nonstandard_attr('HttpOnly')  # Example for httpOnly
+            }
+            driver.add_cookie(cookie_dict)
+        except:
+            pass
+
+driver.refresh()
+
+print('Processing Cost Update')
+
+df = pd.read_excel(f"PO_INPUT.xlsx")
+action = ActionChains(driver)
+
+out_data = {
+    'PO':[],
+    'Asin':[],
+    'Pre Cost':[],
+    'New Cost':[],
+    'Pre Qty' :[],
+    'New Qty' : []
+}
+
+# looping over given PO
+for a,b in df.iterrows():
+ try:    
+    # to open the url in browser
+    driver.get(f'https://procurementportal-eu.corp.amazon.com/bp/action/confirmPo?poId={b['PO']}')
+    WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'react-grid-Viewport')))
+    
+    WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'//kat-box/div[2]/div[1]/div/div/button'))).click()
+    time.sleep(0.4)
+    
+    driver.find_element(By.XPATH,'//div/div/div/div/div[1]/div[2]/div/div[1]/div[1]/div/div').click()
+    driver.find_element(By.XPATH,'//div[1]/div[1]/div/div/div[2]/input').send_keys(str(b['ASIN']) +'\n')
+    
+    time.sleep(0.4)
+            
+    li = driver.find_element(By.CLASS_NAME,'react-grid-Viewport').find_elements(By.TAG_NAME,'span')
+    
+    print(b['PO']," Asin found ..", len(df)-a, b['ASIN'],'.. cost before editing ', li[13].text, end=" ")
+    
+    if(len(li)>0):
+        
+        print('New price',b['Cost'],end=" ")
+        out_data['PO'].append(b['PO'])
+        out_data['Asin'].append(b['ASIN'])
+        out_data['Pre Cost'].append(li[13].text)
+        out_data['Pre Qty'].append(li[6].text)
+        
+        try:
+            if(li[3].text == 'CQ' or li[3].text == 'CA' or li[3].text == 'OS' or li[3].text == 'R2' or li[3].text == 'IR' or li[3].text == '-'):
+                action.double_click(li[3]).perform()
+                m = driver.find_element(By.XPATH,'//div[3]/div/div/div/div/div[1]/div/div/div/div/div/div[2]/div/div/div[1]/div/div/div').find_elements(By.TAG_NAME,'button')
+            
+                for c in m:
+                    if(c.text == 'AC: Accepted: In stock'):
+                        c.click()
+                        time.sleep(0.4)
+                        li = driver.find_element(By.CLASS_NAME,'react-grid-Viewport').find_elements(By.TAG_NAME,'span')
+                        break
+            
+            
+            if not (pd.isna(b['Cost'])) :
+                action.double_click(li[10]).send_keys(b['Cost']).perform()
+                li[6].click()
+                time.sleep(0.4)
+            
+            if  not (pd.isna(b['Qty'])) :
+                if int(li[7].text)*10 >= int(b['Qty']) :
+                    action.double_click(li[6]).send_keys(b['Qty']).perform()
+                    li[3].click()
+            
+            WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'BottomButton-Submit'))).click()
+            WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'POLE task launched! View status in')]")))
+            out_data['New Cost'].append(b['Cost'])
+            out_data['New Qty'].append(b['Qty'])
+            print("is updated")
+                        
+        except:
+            print("is not updated")
+            out_data['New Cost'].append('')    
+            out_data['New Qty'].append('')
+        
     else:
-        print(f"PO {row['po']} is already uncompleted or not found.")
+        print("Cost is not updated")
+        out_data['PO'].append(b['PO'])
+        out_data['Asin'].append(b['ASIN'])
+        out_data['Pre Cost'].append('')
+        out_data['New Cost'].append('')
+        out_data['New Qty'].append('')
+        out_data['Pre Qty'].append('')
+    
+    driver.get('about:blank')      
+ except:
+     pass    
 
-driver.quit()
-print("All POs processed.")
+driver.quit()        
+df_1 = pd.DataFrame(out_data)
+df_1.to_excel(f"PO_Output.xlsx",index=False)     
+
+endTime = time.time()
+
+print("Operational Completed")
+print("Time Taken :", round((endTime-startTime)/60, 2), 'mins')
+
+time.sleep(10)
