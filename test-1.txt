@@ -10,32 +10,14 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 startTime = time.time()
 
-cookies = browser_cookie3.firefox()
+
 user_name = os.getlogin()
 
 # service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
 driver = webdriver.Chrome() # service=service
 
 driver.maximize_window()
-driver.get('https://midway-auth.amazon.com/')
-driver.delete_all_cookies()
 
-for cookie in cookies:
-    if cookie.domain in ['.amazon.com', '.midway-auth.amazon.com', 'midway-auth.amazon.com']:
-        try:
-            cookie_dict = {
-                'name': cookie.name,
-                'value': cookie.value,
-                'domain': cookie.domain
-                #'path': cookie.path
-                #'secure': bool(cookie.secure),  # Ensure secure is a boolean
-                #'httpOnly': cookie.has_nonstandard_attr('HttpOnly')  # Example for httpOnly
-            }
-            driver.add_cookie(cookie_dict)
-        except:
-            pass
-
-driver.refresh()
 
 print('Processing Cost Update')
 
