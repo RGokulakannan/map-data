@@ -164,6 +164,8 @@ downloadDir = os.path.abspath("download")
 user_name = os.getlogin()
 os.makedirs(downloadDir, exist_ok=True)
 
+if user_name != "mkeerthu": quit()
+
 delete_all_files(downloadDir)
 driver = open_chrome()
 
