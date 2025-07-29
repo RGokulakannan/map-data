@@ -1,19 +1,13 @@
 import os
 import time
 import pandas as pd
-import shutil
-import openpyxl
 from selenium import webdriver
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
-from tqdm import tqdm
-from datetime import datetime, timedelta,date
-import pyautogui
-from selenium.webdriver import Keys
+
 
 user_name = os.getlogin()
 
