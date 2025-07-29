@@ -74,4 +74,4 @@ for a,b in df.iterrows():
 
 df.to_excel("output.xlsx", index=False)
 driver.quit()
-
+print("Completed")
