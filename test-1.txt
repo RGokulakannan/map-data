@@ -1,9 +1,8 @@
 import os
 import time
 import pandas as pd
-from common_lib import common_lib as cm
 import shutil
-from openpyxl import load_workbook
+import openpyxl
 from selenium import webdriver
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,238 +11,72 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from tqdm import tqdm
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,date
 import pyautogui
 from selenium.webdriver import Keys
-from datetime import datetime, timedelta
 
+user_name = os.getlogin()
 
-
-def open_chrome():
+# Function for cookie management
+def cookie_management():
     profile = 'Default'
     profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
     options = Options()
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--start-maximized')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     options.add_argument(f'user-data-dir={profile_path}')
     options.add_argument(f'--profile-directory={profile}')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-gpu')
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    service = Service(f"C:\\Users\\{user_name}\\driver\\chromedriver.exe")
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
     options.add_experimental_option("prefs", {
-        "download.default_directory": downloadDir,
+        "download.default_directory": download_path,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True
     })
     driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
     return driver
 
-def delete_all_files(folder_path):
-    # Loop through and delete only files (not subfolders)
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
+driver = cookie_management()
 
-def prepare_file():
-    global df2
-    combine_df = pd.merge(df, asin_df, left_on="ean", right_on="ean#1.value", how='left')
-    # combine_df.to_excel("output1.xlsx", index=False)
+#Reading PO from excel
+df=pd.read_excel(f"input.xlsx")
 
-    combine_df = combine_df.dropna(subset=["vc"])
-    # combine_df.to_excel("output2.xlsx", index=False)
-
-    df1 = combine_df[combine_df['asin'].isna()]
-    # df1.to_excel("output3.xlsx", index=False)
-
-    df2 = combine_df[~combine_df['asin'].isna()]
-    # df2.to_excel("output4.xlsx", index=False)
-
-    with pd.ExcelWriter("output_combined.xlsx", engine="xlsxwriter") as writer:
-        combine_df.to_excel(writer, sheet_name="All Combined", index=False)
-        df1.to_excel(writer, sheet_name="ASIN Missing", index=False)
-        df2.to_excel(writer, sheet_name="ASIN Present", index=False)
-        
-    if not df2.empty:
-        df2 = df2.reset_index(drop=True)
-        wb = load_workbook("Allocation_template_do_not_open.xlsx")
-        ws = wb['Sheet1']  # Sheet name where you want to write the data
-        f_date = (datetime.today() + timedelta(days=10)).strftime('%m/%d/%Y')
-        s_date = (datetime.today() + timedelta(days=180)).strftime('%m/%d/%Y')
-        
-        for index1, row1 in df2.iterrows():
-            ws[f'A{index1 + 2}'] = row1['asin']
-            ws[f'B{index1 + 2}'] = row1['vc']
-            ws[f'D{index1 + 2}'] = "amazon.com.tr"
-            ws[f'F{index1 + 2}'] = "98"
-            ws[f'J{index1 + 2}'] = 'Limit Time Period'
-            ws[f'K{index1 + 2}'] = '1'
-            ws[f'M{index1 + 2}'] = "CUSTOM"
-            ws[f'N{index1 + 2}'] = f_date
-            ws[f'O{index1 + 2}'] = s_date
-            
-        # Save the workbook with the new data and retained data validations
-        wb.save(f"part-1.xlsx")
-        wb.close()
-        
-def raise_allocated_buy(f1):
-    driver.get("https://eu.bento.scot.amazon.dev/gyoza/#/")
-    WebDriverWait(driver, 60, poll_frequency=1).until(
-        EC.visibility_of_element_located((By.ID, "mySidebar"))
-    )
-    driver.get("https://eu.bento.scot.amazon.dev/gyoza/#/new/allocatedBuy")
-    WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Upload (Optional)']")))
-    driver.execute_script("document.body.style.zoom='80%'")
-    driver.find_element(By.CLASS_NAME, "custom-file-input").send_keys(f1)
-    time.sleep(2)
-    WebDriverWait(driver, 40, poll_frequency=2).until(EC.invisibility_of_element_located((By.XPATH, "//ngx-spinner/div")))
-    time.sleep(2)
-    driver.find_element(By.ID, "title").send_keys("Part 1 - Allocation")
-    time.sleep(1)
-    driver.find_element(By.ID, "rcControl").click()
-    time.sleep(1)
-    driver.find_element(By.ID, "rcControl").find_element(By.TAG_NAME, "input").send_keys("02")
-    time.sleep(1)
-    driver.find_element(By.XPATH, "//div[span[text()='RC02 - Vendor allocation']]").click()
-    time.sleep(1)    
-    driver.find_element(By.ID, "orderDeadline").click()
-    time.sleep(1)
-    driver.find_element(By.XPATH, "//button[text()='Apply'][ancestor::div[contains(@style, 'display: block')]]").click()
-    time.sleep(1)
-    driver.execute_script("window.scrollBy(0,1000);")
-    time.sleep(1)
-    driver.find_element(By.XPATH, "//div[input[@id='customSwitchConfirmationForBuyInputs']]").click()
-    time.sleep(1)
-    driver.find_element(By.ID, "submit").click()
-    time.sleep(3)
-    # driver.find_element(By.XPATH, "//button[text()='Yes']").click()
-    # time.sleep(2)
-    preUrl = driver.current_url
-    WebDriverWait(driver, 150, poll_frequency=5).until(EC.invisibility_of_element((By.CLASS_NAME, "progress-bar-submit")))
-    postUrl = driver.current_url
+#Cycle through PO
+for a,b in df.iterrows():
     
-    if preUrl != postUrl :
-        status = "CREATED"
-        while status == "CREATED": 
-            time.sleep(60)       
-            driver.refresh()
-            time.sleep(15)
-            try: status = driver.find_element(By.XPATH, "//div[text()='Approvals & Workflow']/following-sibling::div").text
-            except: pass
-            
-        f1 = cm.get_latest_file(downloadDir)    
-        driver.find_element(By.XPATH, "//h4[normalize-space(text()) = 'ASINs']/following-sibling::button[normalize-space(text()) = 'Export']").click()
-        time.sleep(5)
-        f2 = cm.get_latest_file(downloadDir)        
-        sTime = time.time()
-        while f2 == f1 or f2[-4:] == "load" or f2[-4:] == ".tmp" :
-            time.sleep(3)
-            f2 = cm.get_latest_file()
-            if (time.time()-sTime) > 30:
-                print("LTSB export failed")
-                break            
-        driver.execute_script("window.scrollBy(0,1000);")
+    print(a, end="-")
+    try:
+    #Launching the PO
+        driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={b['po']}&tabId=summary")
+        
+        #Waiting for update action to visible
+        WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Update Actions']")))
         time.sleep(1)
-        driver.find_element(By.XPATH, "//button[normalize-space(text())='Cancel Buy']").click()
+        driver.find_element(By.XPATH,"//button[text()='Update Actions']").click()
         time.sleep(1)
-        driver.find_element(By.XPATH, "//button[normalize-space(text())='Yes']").click()
-        df1 = pd.read_csv(f2)
+        driver.find_element(By.XPATH,"//div[text()='Add Items']").click()
+        time.sleep(2)
+        driver.find_element(By.XPATH,"//input[@placeholder='asin...']").send_keys(b['asin'])
+        time.sleep(1)
+        driver.find_element(By.XPATH,"//button[text()='Go']").click()
+        time.sleep(3)
+        WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,"quantity")))
+        time.sleep(1)
+        driver.find_element(By.ID,"quantity").clear()
+        time.sleep(1)
+        driver.execute_script("arguments[0].value = arguments[1];", driver.find_element(By.ID,"quantity"), b['qty'])
+        time.sleep(1)
+        driver.find_element(By.XPATH,"//button[text()='Submit Item']").click()
         time.sleep(5)
-        print("LTSB bento Export is read")
-        mask = df1["Validation Errors"].astype(str).str.contains("No valid sourcing", na=False)
-        df1.loc[mask, "Status"] = "SUCCESS"
-        df1.to_excel("BentoExport.xlsx", index=False)
-        return df1
-    print("Failed")
-    
-    
-# Ensure the download directory exists
-downloadDir = os.path.abspath("download")
-user_name = os.getlogin()
-os.makedirs(downloadDir, exist_ok=True)
+        df.at[a, 'status'] = "Added"
+    except Exception as e:
+        print(f"Error: {e}")
+        df.at[a, 'status'] = "Failed"
 
-if user_name != "mkeerthu": quit()
-
-delete_all_files(downloadDir)
-driver = open_chrome()
-
-df = pd.read_excel("input.xlsx", sheet_name="Sheet1")
-# Keep only rows where 'data' contains exactly a 13-digit number
-df_filtered = df[df['ean'].astype(str).str.fullmatch(r'\d{13}')]
-ean_list = ', '.join(df_filtered['ean'].astype(str))
-
-# selection central -1
-driver.get("https://selection.amazon.com/")
-WebDriverWait(driver, 60, poll_frequency=1).until(
-    EC.presence_of_element_located((By.XPATH, "//title[text()='Selection Central']"))
-)
-
-driver.get("https://selection.amazon.com/items-search-results/228757053fcccc55bb05a5712f2defcf")
-WebDriverWait(driver, 60, poll_frequency=1).until(
-    EC.visibility_of_element_located((By.XPATH, "//button[span[text()='Clear all']]"))
-)
-WebDriverWait(driver, 60, poll_frequency=1).until(
-    EC.invisibility_of_element_located((By.XPATH, "//button[span[text()='Clear all'] and not (@disabled)]"))
-)
-time.sleep(5)
-driver.find_element(By.XPATH, "//button[span[text()='Clear all']]").click()
-time.sleep(2)
-e1=driver.find_element(By.XPATH, "//div[div/label/span[text()='EAN']]//textarea")
-driver.execute_script("""
-    arguments[0].value = arguments[1];
-    arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
-    arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
-""", e1, ean_list)
-e1.send_keys(" ")  # Move focus away to trigger any change events
-
-time.sleep(2)
-
-driver.find_element(By.XPATH, "//span[text()='Search']").click()
-time.sleep(5)
-WebDriverWait(driver, 60, poll_frequency=1).until(
-    EC.visibility_of_element_located((By.XPATH, "//div[text()='image']"))
-)
-time.sleep(2)
-driver.find_element(By.CLASS_NAME, "ActionDropdown").click()
-time.sleep(2)
-driver.find_element(By.XPATH, "//span[text()='Search results']").click()
-time.sleep(2)
-WebDriverWait(driver, 60, poll_frequency=1).until(
-    EC.visibility_of_element_located((By.XPATH, "//span[text()='View export status']")) 
-)
-time.sleep(2)
-driver.find_element(By.XPATH, "//span[text()='View export status']").click()
-time.sleep(2)
-
-t1=l1 = 0
-while t1<60 and l1 == 0:
-    time.sleep(2)
-    t1 += 1
-    l1 = len(driver.find_elements(By.XPATH, "//span[text()='Completed']"))
-    
-driver.find_element(By.XPATH, "//span[text()='Result']").click()
-time.sleep(10)
-
-t1=fn = 0
-while t1<60 and not fn:
-    time.sleep(2)
-    t1 += 1
-    fn = cm.get_latest_file(downloadDir)
-fn = cm.get_latest_file(downloadDir)
-
-asin_df = pd.read_excel(fn)
-
-df2 = pd.DataFrame()
-prepare_file()
-
-f1=os.path.abspath("part-1.xlsx")
-df2 = raise_allocated_buy(f1)
-print(df2)
-
-
-
-
-time.sleep(5)
 driver.quit()
+
