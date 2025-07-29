@@ -72,5 +72,6 @@ for a,b in df.iterrows():
         print(f"Error: {e}")
         df.at[a, 'status'] = "Failed"
 
+df.to_excel("output.xlsx", index=False)
 driver.quit()
 
