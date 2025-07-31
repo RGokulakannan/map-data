@@ -50,24 +50,26 @@ for a,b in df.iterrows():
         
         #Waiting for update action to visible
         WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Update Actions']")))
-        time.sleep(1)
+        time.sleep(0.5)
         driver.find_element(By.XPATH,"//button[text()='Update Actions']").click()
-        time.sleep(1)
+        time.sleep(0.5)
         driver.find_element(By.XPATH,"//div[text()='Add Items']").click()
-        time.sleep(2)
+        time.sleep(1)
         driver.find_element(By.XPATH,"//input[@placeholder='asin...']").send_keys(b['asin'])
-        time.sleep(1)
+        time.sleep(0.5)
         driver.find_element(By.XPATH,"//button[text()='Go']").click()
-        time.sleep(3)
-        WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,"quantity")))
-        time.sleep(1)
+        time.sleep(2)
+        WebDriverWait(driver,10, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,"quantity")))
+        time.sleep(0.1)
         driver.find_element(By.ID,"quantity").clear()
-        time.sleep(1)
-        driver.execute_script("arguments[0].value = arguments[1];", driver.find_element(By.ID,"quantity"), b['qty'])
-        time.sleep(1)
+        time.sleep(0.1)
+        driver.find_element(By.ID,"quantity").send_keys(b['qty'])
+        time.sleep(0.1)                
         driver.find_element(By.XPATH,"//button[text()='Submit Item']").click()
-        time.sleep(5)
+        time.sleep(1)
+        WebDriverWait(driver,10, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//div[text()='Success']")))
         df.at[a, 'status'] = "Added"
+        
     except Exception as e:
         print(f"Error: {e}")
         df.at[a, 'status'] = "Failed"
