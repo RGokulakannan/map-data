@@ -45,6 +45,7 @@ df = pd.read_excel("Input_BQE.xlsx")
 
 for index, row in df.iterrows():
     print(index, end="-")
+    driver.get("about:blank")
     driver.get("https://csi.amazon.com/diag/Catalog_Issues_Troubleshooter?resourcePath=Catalog_Issues_Troubleshooter")
     WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='browse_related']")))    
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
