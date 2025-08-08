@@ -125,7 +125,7 @@ def method_three():
     disable_all_buttons()
     t1 = time.time()
     removeAllFiles(DOWNLOADDIR)
-    df = pd.read_excel("splitByCost_Output.xlsx")
+    df = pd.read_excel("splitByCost_Output.xlsx", dtype=str)
     print("Total id", len(df))
     for index, row in df.iterrows():
         try:
@@ -226,3 +226,4 @@ button4.pack(pady=5)
 root.mainloop()
 
 driver.quit()
+
