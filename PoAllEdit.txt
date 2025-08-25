@@ -1,1 +1,149 @@
-print("Hello World")
+print("Testing modul")
+import pandas as pd
+import os
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from pathlib import Path
+from time import sleep
+
+user_name = os.getlogin()
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--start-maximized')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')    
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+os.makedirs("template", exist_ok=True)
+
+df = pd.read_excel("PO_All_Edit_input.xlsx")
+
+# PO handoff windows 1
+
+df_dw = df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]]
+df_dw = df_dw[df_dw["Handoff window end date (MM/DD/YYYY)"].notna()]
+has_start_date = df_dw["Handoff window start date (MM/DD/YYYY)"].notna()
+no_start_date  = ~has_start_date
+
+if not df_dw[has_start_date].empty:
+    print("Preparing template for PO start and end date")
+    df_dw[has_start_date].to_csv("template/batchHandoffUpdate_both.csv", index=False)
+
+if not df_dw[no_start_date].empty:
+    print("Preparing template for PO end date")
+    df_dw[no_start_date][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].to_csv("template/batchHandoffUpdate_end.csv", index=False)
+
+# PO Cancel 2
+
+df_po_cancel = df[["PO", "Cancel", "ASIN", "Reason"]]
+df_po_cancel = df_po_cancel[df_po_cancel["Cancel"].notna()]
+df_po_cancel_only_item = df_po_cancel["ASIN"].notna()
+df_po_cancel_all_item  = ~df_po_cancel_only_item
+
+if not df_po_cancel[df_po_cancel_only_item].empty:
+    print("Preparing template for PO Cancel - Only Item")
+    df_po_cancel[df_po_cancel_only_item][["PO","ASIN", "Reason"]].to_csv("template/batchCancel_item.csv", index=False)
+
+if not df_po_cancel[df_po_cancel_all_item].empty:
+    print("Preparing template for PO Cancel - All Items")
+    df_po_cancel[df_po_cancel_all_item][["PO", "Reason"]].to_csv("template/batchCancel_all.csv", index=False)
+
+# PO UnCancel 3
+df_po_uncancel = df[
+    (df[["PO", "Uncancel"]].notna().all(axis=1)) & 
+    (df["Uncancel"] == "Y")
+][["PO"]]
+if not df_po_uncancel.empty:
+    print("Preparing template for PO-UnCancel")
+    df_po_uncancel[["PO"]].to_csv("template/batchUncancel.csv", index=False)
+
+# PO confirm 4
+df_po_confirm = df[
+    (df[["PO", "Confirm(A/R)"]].notna().all(axis=1)) & 
+    (df["Confirm(A/R)"] == "Y")
+][["PO"]]
+if not df_po_confirm.empty:
+    print("Preparing template for PO Confirm")
+    df_po_confirm.to_csv("template/batchAutoConfirm.csv", index=False)
+
+# PO Unconfirm 5
+df_po_unconfirm = df[
+    (df[["PO", "Unconfirm"]].notna().all(axis=1)) & 
+    (df["Unconfirm"] == "Y")
+][["PO"]]
+if not df_po_unconfirm.empty:
+    print("Preparing template for PO-Unconfirm")
+    df_po_unconfirm.to_csv("template/batchUnconfirm.csv", index=False)
+
+
+# PO Release 6
+df_po_relese = df[
+    (df[["PO", "Release"]].notna().all(axis=1)) & 
+    (df["Release"] == "Y")
+][["PO"]]
+if not df_po_relese.empty:
+    print("Preparing template for PO Release")
+    df_po_relese.to_csv("template/batchRelease.csv", index=False)
+
+
+# FC Flipper 7
+df_fc_flipper = df[
+    (df[["PO", "New Fc", "Reason2"]].notna().all(axis=1))
+][["PO", "New Fc", "Reason2"]]
+df_fc_flipper = df_fc_flipper.rename(columns={'Reason2': 'Reason'})
+if not df_fc_flipper.empty:
+    print("Preparing template for FC Flipper")
+    df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
+
+
+driver = open_chrome()
+driver.implicitly_wait(10)  # Set implicit wait
+
+# Define the directory
+directory = Path('template')  # Replace with your actual path
+
+map_process = {
+    "batchHandof": "batchHandoffUpdate",
+    "batchCancel": "batchCancel",
+    "batchUncanc": "batchUncancel",
+    "batchAutoCo": "batchAutoConfirm",
+    "batchUnconf": "batchUnconfirm",
+    "batchReleas": "batchRelease",
+    "batchFcFlip": "batchFcFlip",
+    "batchEddUpd": "batchEddUpdate",
+    "batchCostUp": "batchCostUpdate"
+}
+
+# List all files with absolute paths
+all_files = [file.resolve() for file in directory.rglob('*') if file.is_file() and file.name != 'PO_UnCancel.csv']
+
+if Path('template/PO_UnCancel.csv').exists():
+    all_files.insert(0, Path('template/PO_UnCancel.csv').resolve())
+# Print the results
+for file in all_files:
+    print(f"Processing file: {file.name}")
+    driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/action/{map_process[file.name[0:11]]}")
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Upload Batch Update File']"))).click()
+    
+    sleep(1)    
+    driver.find_element(By.ID, "mib-file-input").send_keys(str(file))
+    
+    sleep(10)
+    
+    
+    
+driver.quit()
