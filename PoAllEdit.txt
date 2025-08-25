@@ -110,6 +110,7 @@ if not df_fc_flipper.empty:
     print("Preparing template for FC Flipper")
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
+input("Can I upload")
 
 driver = open_chrome()
 
