@@ -138,8 +138,6 @@ if not df_fc_flipper.empty:
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
 
-input("Upload ?")
-
 driver = open_chrome()
 
 driver.get("https://procurementportal-eu.corp.amazon.com/bp/home")
@@ -189,6 +187,9 @@ for file in all_files:
     final_task_id.append(url1)
     
 
+print("Upload is complete, waiting for 30 seconds before downloading results")
+sleep(30)
+
 outputFile = []
 
 for url in final_task_id:
@@ -198,14 +199,17 @@ for url in final_task_id:
     WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//th[text()='Task ID']")))
     
     ct = 0
-    while ct < 6:
+    while ct < 10:
         if not len(driver.find_elements(By.XPATH, "//td[text()='RUNNING']")):
             break
         ct+=1
-        sleep(5)
+        sleep(15)
         driver.refresh()
-        sleep(5)
-        
+        sleep(7)
+    
+    if ct > 9:
+        print("Task is still running, skipping download")
+        continue
     if len(driver.find_elements(By.XPATH, "//kat-button[@label='Export Results']")):
         driver.execute_script("window.scrollBy(0, 100);")
         sleep(1)
