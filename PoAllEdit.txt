@@ -26,9 +26,6 @@ def delete_all_files_in_folder(folder_path):
     else:
         print(f"The folder {folder_path} does not exist or is not a directory.")
 
-
-
-
 def open_chrome():
     profile = 'Default'
     profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
@@ -41,14 +38,26 @@ def open_chrome():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-gpu')    
     service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
 os.makedirs("template", exist_ok=True)
+os.makedirs("download", exist_ok=True)
 
 # Example usage
-folder_path = ("template")
+folder_path = "template"
+download_path = os.path.abspath("download")
+downloadDir = Path(download_path)
+
 delete_all_files_in_folder(folder_path)
+delete_all_files_in_folder(download_path)
+
 df = pd.read_excel("PO_All_Edit_input.xlsx")
 
 # PO handoff windows 1
@@ -129,8 +138,7 @@ if not df_fc_flipper.empty:
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
 
-
-input("Can I upload ")
+input("Upload ?")
 
 driver = open_chrome()
 
@@ -157,6 +165,9 @@ all_files = [file.resolve() for file in directory.rglob('*') if file.is_file() a
 
 if Path('template/PO_UnCancel.csv').exists():
     all_files.insert(0, Path('template/PO_UnCancel.csv').resolve())
+    
+final_task_id = []
+
 # Print the results
 for file in all_files:
     print(f"Processing file: {file.name}")
@@ -175,5 +186,49 @@ for file in all_files:
     url1 = driver.find_element(By.CLASS_NAME, "alert-success").find_element(By.TAG_NAME, "a").text
     
     print(f"Processed file: {file.name}, URL: {url1}")
+    final_task_id.append(url1)
     
+
+outputFile = []
+
+for url in final_task_id:
+    
+    print(url, end = " .. ")
+    driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/pole/view?taskId={url}")
+    WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//th[text()='Task ID']")))
+    
+    ct = 0
+    while ct < 30:
+        if not len(driver.find_elements(By.XPATH, "//td[text()='RUNNING']")):
+            break
+        ct+=1
+        sleep(1)
+        
+    if len(driver.find_elements(By.XPATH, "//kat-button[@label='Export Results']")):
+        driver.execute_script("window.scrollBy(0, 100);")
+        sleep(1)
+        driver.find_element(By.XPATH, "//kat-button[@label='Export Results']").click()
+        sleep(1)
+        
+        f1 = {f for f in downloadDir.iterdir() if f.is_file()}
+        driver.find_element(By.XPATH, "//button[text()='Download Excel']").click()
+        sleep(1)
+        
+        ct = 0
+        while ct<30:
+            f2 = {f for f in downloadDir.iterdir() if f.is_file()}
+            if f2-f1:
+                f2 = next(iter(f2), None) # Returns None if set is empty
+                if f2 :
+                    if str(f2).endswith(".xlsx"):
+                        break
+            sleep(1)
+            ct+=1
+        
+        outputFile.append(pd.read_excel(f2))
+        print("ok")
+    else:
+        print("Download is missing for ", url)
+
+pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 driver.quit()
