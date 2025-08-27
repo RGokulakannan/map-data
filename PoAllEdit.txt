@@ -138,6 +138,7 @@ if not df_fc_flipper.empty:
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
 
+input("Upload?")
 driver = open_chrome()
 
 driver.get("https://procurementportal-eu.corp.amazon.com/bp/home")
