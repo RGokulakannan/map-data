@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from pathlib import Path
 from time import sleep
-from selenium.webdriver.support.ui import Select
+
 
 user_name = os.getlogin()
 
