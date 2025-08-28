@@ -251,3 +251,4 @@ for url in final_task_id:
 
 pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 driver.quit()
+sleep(500)
