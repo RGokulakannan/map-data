@@ -65,22 +65,24 @@ df = pd.read_excel("PO_All_Edit_input.xlsx", dtype=str)
 
 df_dw = df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]]
 
-df_dw = df_dw[df_dw[ "Handoff window end date (MM/DD/YYYY)"].notna()]
-has_start_date = df_dw[ "Handoff window start date (MM/DD/YYYY)"].notna()
-no_start_date  = ~has_start_date
+df_dw_all = df_dw[
+    df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].notna().all(axis=1)
+][["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
 
-if not df_dw[has_start_date].empty:
+if not df_dw_all.empty:
     print("Preparing template for PO start and end date")
-    df_fin = df_dw[has_start_date].copy()
-    df_fin["Handoff window start date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window start date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
-    df_fin["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
-    df_fin.to_csv("template/batchHandoffUpdate_both.csv", index=False)
+    df_dw_all["Handoff window start date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_all['Handoff window start date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_all["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_all['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_all.to_csv("template/batchHandoffUpdate_both.csv", index=False)
+    
+df_dw_end = df_dw[
+    df[["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].notna().all(axis=1)
+][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
 
-if not df_dw[no_start_date].empty:
+if not df_dw_end.empty:
     print("Preparing template for PO end date")
-    df_fin = df_dw[no_start_date][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
-    df_fin["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
-    df_fin.to_csv("template/batchHandoffUpdate_end.csv", index=False)
+    df_dw_end["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_end['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_end.to_csv("template/batchHandoffUpdate_end.csv", index=False)
 
 # PO Cancel 2
 
@@ -214,6 +216,7 @@ outputFile = []
 for url in final_task_id:
     
     print(url, end = " .. ")
+    driver.get("about:blank")
     driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/pole/view?taskId={url}")
     WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//th[text()='Task ID']")))
     
@@ -229,6 +232,7 @@ for url in final_task_id:
     if ct > 9:
         print("Task is still running, skipping download")
         continue
+    sleep(3)
     if len(driver.find_elements(By.XPATH, "//kat-button[@label='Export Results']")):
         driver.execute_script("window.scrollBy(0, 100);")
         sleep(1)
@@ -237,7 +241,6 @@ for url in final_task_id:
         
         f1 = {f for f in downloadDir.iterdir() if f.is_file()}
         driver.find_element(By.XPATH, "//button[text()='Download Excel']").click()
-        sleep(1)
         
         ct = 0
         while ct<30:
@@ -249,7 +252,7 @@ for url in final_task_id:
                         break
             sleep(1)
             ct+=1
-        
+            
         outputFile.append(pd.read_excel(f2))
         print("ok")
     else:
