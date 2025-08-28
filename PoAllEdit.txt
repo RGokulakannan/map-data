@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from pathlib import Path
 from time import sleep
+from selenium.webdriver.support.ui import Select
 
 user_name = os.getlogin()
 
@@ -138,7 +139,8 @@ if not df_fc_flipper.empty:
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
 
-input("Upload?")
+input("Upload ?")
+
 driver = open_chrome()
 
 driver.get("https://procurementportal-eu.corp.amazon.com/bp/home")
@@ -176,6 +178,12 @@ for file in all_files:
     sleep(1)    
     driver.find_element(By.ID, "mib-file-input").send_keys(str(file))
     
+    if file.name in ["batchHandoffUpdate_both.csv", "batchHandoffUpdate_end.csv"]:
+        tz = driver.find_element(By.ID, "modal-body").find_element(By.TAG_NAME, "select")
+        select = webdriver.support.ui.Select(tz)
+        # Select an option by visible text
+        select.select_by_visible_text("Europe/Berlin")
+        
     sleep(1)
     driver.find_element(By.XPATH, "//button[text()='Submit']").click()
     
