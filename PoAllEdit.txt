@@ -64,19 +64,23 @@ df = pd.read_excel("PO_All_Edit_input.xlsx", dtype=str)
 # PO handoff windows 1
 
 df_dw = df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]]
-df_dw = df_dw[df_dw["Handoff window end date (MM/DD/YYYY)"].notna()]
-has_start_date = df_dw["Handoff window start date (MM/DD/YYYY)"].notna()
+
+df_dw = df_dw[df_dw[ "Handoff window end date (MM/DD/YYYY)"].notna()]
+has_start_date = df_dw[ "Handoff window start date (MM/DD/YYYY)"].notna()
 no_start_date  = ~has_start_date
 
 if not df_dw[has_start_date].empty:
     print("Preparing template for PO start and end date")
-    print(df_dw[has_start_date])
-    df_dw[has_start_date].to_csv("template/batchHandoffUpdate_both.csv", index=False)
+    df_fin = df_dw[has_start_date].copy()
+    df_fin["Handoff window start date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window start date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_fin["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_fin.to_csv("template/batchHandoffUpdate_both.csv", index=False)
 
 if not df_dw[no_start_date].empty:
     print("Preparing template for PO end date")
-    print(df_dw[no_start_date][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]])
-    df_dw[no_start_date][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].to_csv("template/batchHandoffUpdate_end.csv", index=False)
+    df_fin = df_dw[no_start_date][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
+    df_fin["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_fin['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_fin.to_csv("template/batchHandoffUpdate_end.csv", index=False)
 
 # PO Cancel 2
 
@@ -253,4 +257,3 @@ for url in final_task_id:
 
 pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 driver.quit()
-sleep(500)
