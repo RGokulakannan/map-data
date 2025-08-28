@@ -190,6 +190,10 @@ for file in all_files:
     sleep(1)
     WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME, "alert-success")))
     
+    if file.name == "batchUncancel.csv":
+        print("Un-Cancelling the PO, waiting for 60 seconds")
+        sleep(60)
+        
     url1 = driver.find_element(By.CLASS_NAME, "alert-success").find_element(By.TAG_NAME, "a").text
     
     print(f"Processed file: {file.name}, URL: {url1}")
