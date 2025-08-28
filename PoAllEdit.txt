@@ -59,7 +59,7 @@ downloadDir = Path(download_path)
 delete_all_files_in_folder(folder_path)
 delete_all_files_in_folder(download_path)
 
-df = pd.read_excel("PO_All_Edit_input.xlsx")
+df = pd.read_excel("PO_All_Edit_input.xlsx", dtype=str)
 
 # PO handoff windows 1
 
