@@ -1,4 +1,4 @@
-print("Testing modul")
+print("Testing modul Po All Edits")
 
 import pandas as pd
 import os
@@ -188,7 +188,7 @@ for file in all_files:
     
     if file.name in ["batchHandoffUpdate_both.csv", "batchHandoffUpdate_end.csv"]:
         tz = driver.find_element(By.ID, "modal-body").find_element(By.TAG_NAME, "select")
-        select = webdriver.support.ui.Select(tz)
+        select = Select(tz)
         # Select an option by visible text
         select.select_by_visible_text("Europe/Berlin")
         
@@ -242,22 +242,22 @@ for url in final_task_id:
         f1 = {f for f in downloadDir.iterdir() if f.is_file()}
         driver.find_element(By.XPATH, "//button[text()='Download Excel']").click()
         sleep(5)
-
         ct = 0
         while ct<30:
             f2 = {f for f in downloadDir.iterdir() if f.is_file()}
-            if f2-f1:
-                f2 = next(iter(f2), None) # Returns None if set is empty
-                if f2 :
-                    if str(f2).endswith(".xlsx"):
-                        break
+            f3 = f2 - f1
+            if f3:
+                f3 = next(iter(f3), None) # Returns None if set is empty
+                if str(f3).endswith(".xlsx"):
+                    break
             sleep(1)
             ct+=1
             
-        outputFile.append(pd.read_excel(f2))
-        print("ok")
+        if ct<30 : outputFile.append(pd.read_excel(f3))
+        print("ok", f3)
     else:
         print("Download is missing for ", url)
 
 pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 driver.quit()
+sleep(300)
