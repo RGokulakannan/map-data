@@ -241,7 +241,8 @@ for url in final_task_id:
         
         f1 = {f for f in downloadDir.iterdir() if f.is_file()}
         driver.find_element(By.XPATH, "//button[text()='Download Excel']").click()
-        
+        sleep(5)
+
         ct = 0
         while ct<30:
             f2 = {f for f in downloadDir.iterdir() if f.is_file()}
