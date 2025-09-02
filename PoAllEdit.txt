@@ -114,6 +114,7 @@ df_po_confirm = df[
     (df["Confirm(A/R)"] == "Y")
 ][["PO"]]
 if not df_po_confirm.empty:
+    df_po_confirm["Accept or Reject? (A/R)"] = "A"
     print("Preparing template for PO Confirm")
     df_po_confirm.to_csv("template/batchAutoConfirm.csv", index=False)
 
