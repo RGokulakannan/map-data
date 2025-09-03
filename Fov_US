@@ -1,4 +1,5 @@
 print(exe_name)
+print(url)
 
 time.sleep(5)
 
