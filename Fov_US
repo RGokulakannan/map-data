@@ -1,0 +1,81 @@
+import pandas as pd
+
+
+# Function to check if a string is a date
+def is_date(string):
+    try:
+        pd.to_datetime(string)
+        return True
+    except:
+        return False
+    
+df = pd.read_excel("input_fov_test.xlsx", dtype=str)
+df = df.dropna(subset=['Asin'])
+
+df_column = df.columns.str.strip()
+
+if "Asin" not in df_column:
+    print("Asin column is missing")
+    exit()
+if "Reason" not in df_column:
+    print("Reason column is missing")
+    exit()
+if "Quantile" not in df_column:
+    print("Quantile column is missing")
+    exit()
+
+# Columns you want to keep in addition to date columns
+extra_cols = ['Asin', 'Reason', 'Quantile']
+
+rename_columns = {}
+
+# Select date columns
+date_columns = []
+stop = False
+for col in df.columns:
+    if is_date(col):
+        date_columns.append(col)
+        stop = True
+        continue
+    if stop:
+        break
+    
+date_columns = sorted(date_columns)
+
+# Check for 7-day gaps
+is_7day_gap = False
+for i in range(len(date_columns) - 1):
+    diff = (date_columns[i + 1] - date_columns[i]).days
+    if diff != 7:
+        print(f"⚠️  Gap between {date_columns[i].date()} and {date_columns[i + 1].date()} is {diff} days (not 7!)")
+        is_7day_gap = True
+
+if is_7day_gap:        
+    quit()
+
+date_columns_1 = []
+for a in date_columns:
+    early_date_no = a.weekday()
+    if early_date_no != 6:
+        next_sunday = a + pd.Timedelta(days=(6 - early_date_no))
+    else:
+        next_sunday = a
+    rename_columns[a] = next_sunday.strftime('%m/%d/%Y')
+    date_columns_1.append(next_sunday.strftime('%m/%d/%Y'))
+
+df = df.rename(columns=rename_columns)
+
+# Combine date columns with extra columns, making sure no duplicates
+columns_to_keep = [col for col in extra_cols if col in df.columns] + date_columns_1
+
+# Filter the DataFrame
+df_filtered = df[columns_to_keep].copy()
+
+# Convert date columns values to integers (if possible)
+for col in date_columns_1:
+    # Convert to numeric first (if not already), then to int
+    df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').fillna(0).astype(int)
+    
+df_filtered["FcstGroupId"] = 1
+
+df_filtered.to_excel("output_fov.xlsx", index=False)
