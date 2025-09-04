@@ -75,9 +75,9 @@ for index, row in df.iterrows():
         time.sleep(1)
         driver.find_element(By.ID, "submit").click()
         
-        WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "search_string")))
+        WebDriverWait(driver, 10, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "search_string_input")))
         time.sleep(1)
-        drop_down_select("search_string", row["Attribute Selection"])
+        drop_down_select("search_string_input", row["Attribute Selection"])
         time.sleep(1)
         
         
