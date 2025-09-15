@@ -50,7 +50,8 @@ for i in range(len(date_columns) - 1):
         print(f"⚠️  Gap between {date_columns[i].date()} and {date_columns[i + 1].date()} is {diff} days (not 7!)")
         is_7day_gap = True
 
-if is_7day_gap:        
+if is_7day_gap:       
+    print("dates are not in 7 days gap")
     quit()
 
 date_columns_1 = []
