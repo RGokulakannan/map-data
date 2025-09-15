@@ -1,6 +1,3 @@
-print("Testing module")
-time.sleep(2)
-
 import pandas as pd
 
 
@@ -13,7 +10,6 @@ def is_date(string):
         return False
     
 df = pd.read_excel("input_fov_test.xlsx", dtype=str)
-df = df.dropna(subset=['Asin'])
 
 df_column = df.columns.str.strip()
 
@@ -27,6 +23,7 @@ if "Quantile" not in df_column:
     print("Quantile column is missing")
     exit()
 
+df = df.dropna(subset=['Asin'])
 # Columns you want to keep in addition to date columns
 extra_cols = ['Asin', 'Reason', 'Quantile']
 
@@ -43,12 +40,12 @@ for col in df.columns:
     if stop:
         break
     
-date_columns = sorted(date_columns)
+date_columns = sorted(date_columns, key=lambda x: pd.to_datetime(x))
 
 # Check for 7-day gaps
 is_7day_gap = False
 for i in range(len(date_columns) - 1):
-    diff = (date_columns[i + 1] - date_columns[i]).days
+    diff = ( pd.to_datetime(date_columns[i + 1]) -  pd.to_datetime(date_columns[i])).days
     if diff != 7:
         print(f"⚠️  Gap between {date_columns[i].date()} and {date_columns[i + 1].date()} is {diff} days (not 7!)")
         is_7day_gap = True
@@ -58,6 +55,7 @@ if is_7day_gap:
 
 date_columns_1 = []
 for a in date_columns:
+    a = pd.to_datetime(a)
     early_date_no = a.weekday()
     if early_date_no != 6:
         next_sunday = a + pd.Timedelta(days=(6 - early_date_no))
@@ -83,37 +81,37 @@ df_filtered["FcstGroupId"] = 1
 
 df_filtered.to_excel("output_fov.xlsx", index=False)
 
-df = pd.read_excel("input_fov_delete.xlsx", dtype=str)
-df_column = df.columns.str.strip()
+quit()
 
-if "ASIN" not in df_column:
-    print("ASIN column is missing")
-    exit()
-if "StartDate" not in df_column:
-    print("StartDate column is missing")
-    exit()
-if "EndDate" not in df_column:
-    print("EndDate column is missing")
-    exit()
 
-df = df.dropna(subset=['ASIN'])
 
-# Step 1: Convert with coercion
-df['StartDate'] = pd.to_datetime(df['StartDate'], errors='coerce')
-df['EndDate'] = pd.to_datetime(df['EndDate'], errors='coerce')
 
-# Step 2: Format to mm/dd/yyyy (NaT stays as NaT unless you choose to fill it)
-df['StartDate'] = df['StartDate'].dt.strftime('%m/%d/%Y')
-df['EndDate'] = df['EndDate'].dt.strftime('%m/%d/%Y')
 
-if df[['StartDate', 'EndDate']].isna().any().any():
-    print("There are invalid dates in StartDate or EndDate columns.")
-    exit()
+# Filter the DataFrame
+df_filtered = df[columns_to_keep].copy()
 
-df_fin = df[["ASIN", "StartDate", "EndDate"]].copy()
-df_fin["Action"] = "delete"
-df_fin["FcstGroupId"] = "1"
+# Convert date columns values to integers (if possible)
+for col in date_columns:
+    # Convert to numeric first (if not already), then to int
+    df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').fillna(0).astype(int)
 
-df_fin.to_excel("output_fov_delete.xlsx", index=False)
+# Format date columns to mm/dd/yyyy
+formatted_columns = {
+    col: pd.to_datetime(col).strftime('%m/%d/%Y') if col in date_columns else col
+    for col in df_filtered.columns
+}
 
-time.sleep(10)
+# Rename columns
+df_filtered.columns = formatted_columns.values()
+
+df_filtered["FcstGroupId"] = 1
+
+df_filtered.to_excel("output_fov.xlsx", index=False)
+
+
+# to check minimum 1 column of date is present
+# Asin	Reason	Quantile
+# print if the dates doesnt have 7 days gap
+# every sunday if not sunday then align to next sunday
+
+
