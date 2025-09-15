@@ -80,38 +80,3 @@ for col in date_columns_1:
 df_filtered["FcstGroupId"] = 1
 
 df_filtered.to_excel("output_fov.xlsx", index=False)
-
-quit()
-
-
-
-
-
-# Filter the DataFrame
-df_filtered = df[columns_to_keep].copy()
-
-# Convert date columns values to integers (if possible)
-for col in date_columns:
-    # Convert to numeric first (if not already), then to int
-    df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').fillna(0).astype(int)
-
-# Format date columns to mm/dd/yyyy
-formatted_columns = {
-    col: pd.to_datetime(col).strftime('%m/%d/%Y') if col in date_columns else col
-    for col in df_filtered.columns
-}
-
-# Rename columns
-df_filtered.columns = formatted_columns.values()
-
-df_filtered["FcstGroupId"] = 1
-
-df_filtered.to_excel("output_fov.xlsx", index=False)
-
-
-# to check minimum 1 column of date is present
-# Asin	Reason	Quantile
-# print if the dates doesnt have 7 days gap
-# every sunday if not sunday then align to next sunday
-
-
