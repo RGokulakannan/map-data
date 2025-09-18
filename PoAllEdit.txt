@@ -268,6 +268,6 @@ for url in final_task_id:
 # pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 df_fin = pd.concat(outputFile, ignore_index=True)
 df_final = df_fin.merge(df[['PO', 'sim_id']], on='PO', how='left')
-print(df_final.to_string(index=False))
+df_final.to_excel("Output.xlsx", index=False)
 
 driver.quit()
