@@ -116,8 +116,8 @@ if not df_po_uncancel.empty:
 
 # PO confirm 4
 df_po_confirm = df[
-    (df[["PO", "Confirm(A/R)"]].notna().all(axis=1)) & 
-    (df["Confirm(A/R)"] == "Y")
+    (df[["PO", "Confirm"]].notna().all(axis=1)) & 
+    (df["Confirm"] == "Y")
 ][["PO"]]
 if not df_po_confirm.empty:
     print("Preparing template for PO Confirm")
