@@ -268,6 +268,10 @@ for url in final_task_id:
 # pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
 df_fin = pd.concat(outputFile, ignore_index=True)
 df_final = df_fin.merge(df[['PO', 'sim_id']], on='PO', how='left')
-df_final.to_excel("Output.xlsx", index=False)
+
+time1 = pd.Timestamp.now()
+timestamp = time1.strftime('%y-%m-%d_%H-%M-%S')
+df_final['Time Stamp'] = time1
+df_final.to_excel(f"Output_{timestamp}.xlsx", index=False)
 
 driver.quit()
