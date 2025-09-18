@@ -57,7 +57,15 @@ downloadDir = Path(download_path)
 delete_all_files_in_folder(folder_path)
 delete_all_files_in_folder(download_path)
 
-df = pd.read_excel("PO_All_Edit_input.xlsm", dtype=str)
+df = pd.read_excel("PO_All_Edit_input.xlsx", dtype=str)
+
+# Find 'PO' values that have more than 1 unique 'sim_id'
+a_with_multiple_b = df.groupby('PO')['sim_id'].nunique()
+a_with_multiple_b = a_with_multiple_b[a_with_multiple_b > 1].index
+df_filtered = df[df['PO'].isin(a_with_multiple_b)]
+if not df_filtered.empty:
+    print(df_filtered.to_string(index=False))
+    input("PO is found in more than 1 sim So ouput will be not accurate. Press any key and enter to continue.")
 
 # PO handoff windows 1
 
@@ -108,12 +116,12 @@ if not df_po_uncancel.empty:
 
 # PO confirm 4
 df_po_confirm = df[
-    (df[["PO", "Confirm"]].notna().all(axis=1)) & 
-    (df["Confirm"] == "Y")
+    (df[["PO", "Confirm(A/R)"]].notna().all(axis=1)) & 
+    (df["Confirm(A/R)"] == "Y")
 ][["PO"]]
 if not df_po_confirm.empty:
-    df_po_confirm["Accept or Reject? (A/R)"] = "A"
     print("Preparing template for PO Confirm")
+    df_po_confirm["Accept or Reject? (A/R)"] = "A"
     df_po_confirm.to_csv("template/batchAutoConfirm.csv", index=False)
 
 # PO Unconfirm 5
@@ -257,7 +265,9 @@ for url in final_task_id:
     else:
         print("Download is missing for ", url)
 
-pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
+# pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
+df_fin = pd.concat(outputFile, ignore_index=True)
+df_final = df_fin.merge(df[['PO', 'sim_id']], on='PO', how='left')
+print(df_final.to_string(index=False))
+
 driver.quit()
-print("Thank you")
-sleep(5)
