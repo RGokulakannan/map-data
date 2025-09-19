@@ -1,0 +1,229 @@
+import os
+import time
+import re
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
+import openpyxl
+from selenium.webdriver.common.action_chains import ActionChains
+import pyperclip
+from bs4 import BeautifulSoup
+
+user_name = os.getlogin()
+
+def getFc(asin, mp):
+    try:
+        index_post = mp_li.index(mp.lower())
+        driver.get(f"https://prod.eu.denali.scot.amazon.dev/availability-analysis?marketplaceID={mrk_li[index_post]}&merchantID={mch_li[index_post]}&merchantSKU={asin}&view=availability&subview=simplified")
+        WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//tbody")))
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        table = soup.find("tbody")
+        trs = table.find_all("tr")
+        a1=0
+        fin=''
+        for tr in trs:
+            if len(tr)>4:
+                fc = tr.find('td', {'class':'fc-column'}).text.strip()
+                bc = tr.find('td', {'class':'building-country-code-column'}).text.strip()
+                ib = tr.find('td', {'class':'in-building-column'}).text.strip()
+                ib = int(ib) if ib.isdigit() else 0
+                if a1<ib and bc.lower() == mp.lower(): 
+                    fin = fc, bc, ib
+                    a1=ib
+        print(fin)
+        return fin
+    except Exception as e:
+        print(f"Error fetching FC for ASIN {asin} in marketplace {mp}: {e}")
+        return None
+    
+# Function for cookie management
+def cookie_management():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument("--start-maximized") # Add the argument to start maximized
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
+    driver = webdriver.Chrome(service=service, options=options)    
+    return driver
+
+driver = cookie_management()
+
+start_time = time.time()
+# program begins
+mrk_li = [3, 4, 5, 35691, 44551, 328451, 712115121, 704403121]
+mch_li = [9, 10, 11, 755690533, 695831032, 7067781925, 54402072512, 54402660112]
+mp_li = ["gb", "de", "fr", "it", "es", "nl", "pl", "se"]
+
+def match_isolated_word(text, word):
+    # Escape the word in case it has special characters
+    escaped_word = re.escape(word)
+    # Build the regex dynamically
+    pattern = rf'-\s*{escaped_word}\s*-'    
+    # Search for matches
+    return re.search(pattern, text)
+
+# Create a new workbook
+output = openpyxl.Workbook()
+# Rename the default sheet to "sh1"
+output_sheet = output.active
+df = pd.read_excel("input.xlsx")
+output_sheet.append(["Row", "TT", 'Asin', "FC", "MP", "Qty", "Building"])
+
+try:
+    for a,b in df.iterrows():
+        print("Processing ",len(df) - a, end=" ")
+        webPage = ""
+        try:
+            build = ''
+            fc = getFc(b['ASIN'], b['mp'])
+            if not fc : 
+                webPage = "FC not found"
+                continue
+
+            title_Head = b['short_description']
+            
+            # Lauching clone TT with 3 identical fields
+            driver.get('https://t.corp.amazon.com/create')
+            
+            # waiting for Category (C) to visible
+            WebDriverWait(driver,70, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'category-selector'))).click()
+            time.sleep(1)
+            # sending iss
+            driver.find_element(By.XPATH,"//div[button[@id='category-selector']]/following-sibling::div[2]/div[2]//input").send_keys(b['category'])
+            
+            # Getting ISS list elements
+            WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[button[@id='category-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")))
+            time.sleep(1)
+            cat_li = driver.find_element(By.XPATH,"//div[button[@id='category-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")
+            cat_li = cat_li.find_elements(By.TAG_NAME, "div")            
+            
+            for c in cat_li:
+                
+                if(c.text == b['category']): 
+                    c.click()
+                    time.sleep(1)
+                    break
+            
+            # Waiting for Type field
+            WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'type-selector'))).click()
+            time.sleep(1)
+            driver.find_element(By.XPATH,"//div[button[@id='type-selector']]/following-sibling::div[2]/div[2]//input").send_keys(b['type'])
+            WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//div[button[@id='type-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")))
+            time.sleep(1)
+            type_li = driver.find_element(By.XPATH,"//div[button[@id='type-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")
+            type_li = type_li.find_elements(By.TAG_NAME,'div')
+            
+            for d in type_li:
+                
+                if(d.text == b['type']):
+                    d.click()
+                    time.sleep(1)
+                    break
+                
+            # Item selector to choose field
+            WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'item-selector'))).click()
+            time.sleep(1)
+            driver.find_element(By.XPATH,"//div[button[@id='item-selector']]/following-sibling::div[2]/div[2]//input").send_keys(b['item'])
+            WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[button[@id='item-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")))
+            time.sleep(1)
+            item_li = driver.find_element(By.XPATH, "//div[button[@id='item-selector']]/following-sibling::div[2]/div[2]/div/div/div[2]")
+            item_li = item_li.find_elements(By.TAG_NAME,'div')
+
+            for d in item_li:
+                
+                if(d.text == b['item']):
+                    d.click()
+                    time.sleep(1)
+                    break
+            
+            #severity
+            driver.find_element(By.ID,'ticket-severity').click()
+            time.sleep(1)
+            driver.find_element(By.XPATH, "//*[contains(text(), 'Group productivity impaired')]").click()
+                    
+            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'problem-location-form-field')))
+            
+            gup = driver.find_element(By.ID,'problem-location-form-field')
+            driver.execute_script("arguments[0].scrollIntoView(true);", gup)
+            
+            gup.click()
+            gup.send_keys("A")
+            gup.send_keys(Keys.CONTROL + 'a')
+            gup.send_keys(Keys.DELETE)
+            
+            gup.send_keys(fc[0])
+            
+            WebDriverWait(driver, 60, poll_frequency=1).until(lambda driver : len(driver.find_elements(By.XPATH, "//div[div[input[@id='problem-location-form-field']]]/following-sibling::div[2]/div[2]/div/div/div/div/div")) >2)
+            bid_li = driver.find_elements(By.XPATH, "//div[div[input[@id='problem-location-form-field']]]/following-sibling::div[2]/div[2]/div/div/div/div/div")
+            for a1 in bid_li:
+                if match_isolated_word(a1.text.lower(), fc[0].lower()):
+                    build = a1.text
+                    a1.click()
+                    break
+                    
+            # Description
+            driver.find_element(By.ID,'markdown-editor').click() # send_keys(b['detail'])
+            pyperclip.copy(str(b['detail']))
+            ActionChains(driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+
+            # Title text
+            driver.find_element(By.ID,'ticket-title').click() # send_keys(str(title_Head))
+            pyperclip.copy(str(title_Head))
+            ActionChains(driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+            time.sleep(0.2)
+            
+            try:
+                # Quantity
+                driver.find_element(By.ID,'sim-vendorInformationCard--quantityInput').send_keys(b['quantity'])
+                time.sleep(1)
+                
+                # Asin
+                driver.find_element(By.ID,'sim-vendorInformationCard--asinInput').send_keys(b['ASIN'])
+                time.sleep(1)
+                
+            except:
+                print("Asin and Qty field not found")
+            
+            # Submit button
+            current_url = driver.current_url
+            driver.find_element(By.XPATH, "//button[@data-rum-id='create_ticket']").click()
+            print('success')
+            WebDriverWait(driver, 60, poll_frequency=1.5).until(lambda driver : len(driver.current_url) > 34 and len(driver.current_url) < 38 ) 
+            webPage = driver.current_url
+            
+        except Exception as e:
+            print(e)
+            print("Failed on rows=", a+1)    
+            
+        finally:
+            if not fc:
+                fc = ["", "", ""]
+            if len(fc) <2: 
+                fc = ["", "", ""]
+            output_sheet.append([a+1, webPage, b['ASIN'], fc[0], fc[1], fc[2], build])
+            
+finally :
+    output.save("Output.xlsx")
+
+driver.quit()
+end_time = time.time()
+duration = end_time - start_time
+print("Time duration of program : ", round(duration,2), "seconds")
