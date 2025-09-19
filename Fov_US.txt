@@ -15,12 +15,15 @@ df_column = df.columns.str.strip()
 
 if "Asin" not in df_column:
     print("Asin column is missing")
+    sleep(20)
     exit()
 if "Reason" not in df_column:
     print("Reason column is missing")
+    sleep(20)
     exit()
 if "Quantile" not in df_column:
     print("Quantile column is missing")
+    sleep(20)
     exit()
 
 df = df.dropna(subset=['Asin'])
@@ -48,10 +51,12 @@ for i in range(len(date_columns) - 1):
     diff = ( pd.to_datetime(date_columns[i + 1]) -  pd.to_datetime(date_columns[i])).days
     if diff != 7:
         print(f"⚠️  Gap between {date_columns[i].date()} and {date_columns[i + 1].date()} is {diff} days (not 7!)")
+        sleep(10)
         is_7day_gap = True
 
 if is_7day_gap:       
     print("dates are not in 7 days gap")
+    sleep(10)
     quit()
 
 date_columns_1 = []
