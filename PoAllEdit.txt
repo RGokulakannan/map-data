@@ -154,6 +154,21 @@ if not df_fc_flipper.empty:
     df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
 
 
+# PO Cancel 8
+
+df_edd = df[["PO", "ASIN", 'EDD (MM/DD/YYYY)']]
+df_edd = df_edd[df_edd["EDD (MM/DD/YYYY)"].notna()]
+df_edd_asin_po = df_edd["ASIN"].notna()
+df_edd_po  = ~df_edd_asin_po
+
+if not df_edd[df_edd_asin_po].empty:
+    print("Preparing template for POAsinBatchEDDTemplate")
+    df_edd[df_edd_asin_po][["PO","ASIN", "EDD (MM/DD/YYYY)"]].to_csv("template/batchEddUpdate_asin_PO.csv", index=False)
+
+if not df_edd[df_edd_po].empty:
+    print("Preparing template for POBatchEDDTemplate")
+    df_edd[df_edd_po][["PO", "EDD (MM/DD/YYYY)"]].to_csv("template/batchEddUpdate_PO.csv", index=False)
+    
 input("Upload ?")
 
 driver = open_chrome()
