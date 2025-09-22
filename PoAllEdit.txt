@@ -229,7 +229,8 @@ for file in all_files:
         select = Select(tz)
         # Select an option by visible text
         select.select_by_visible_text(region)
-        
+        input("Is timezone selected")
+
     sleep(1)
     driver.find_element(By.XPATH, "//button[text()='Submit']").click()
     
