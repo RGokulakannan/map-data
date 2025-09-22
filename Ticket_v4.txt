@@ -181,10 +181,11 @@ try:
             # Submit button
             current_url = driver.current_url
             driver.find_element(By.XPATH, "//button[@data-rum-id='create_ticket']").click()
-            print('success')
+            
             WebDriverWait(driver, 60, poll_frequency=1.5).until(lambda driver : len(driver.current_url) > 34 and len(driver.current_url) < 38 ) 
             webPage = driver.current_url
-            
+            print('success')
+
         except Exception as e:
             print(e)
             print("Failed on rows=", a+1)    
