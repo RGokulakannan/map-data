@@ -174,7 +174,7 @@ inr = input("""Select the TimeZone (1 to 5) ..
 2. Europe/Berlin
 3. Africa/Cairo
 4. Europe/Moscow
-5. Asia/Duba
+5. Asia/Dubai
 """)
 
 tiz = {
