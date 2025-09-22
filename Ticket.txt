@@ -207,7 +207,7 @@ try:
             driver.find_element(By.XPATH, "//button[@data-rum-id='create_ticket']").click()
             
             WebDriverWait(driver, 60, poll_frequency=1.5).until(lambda driver : len(driver.current_url) > 34 and len(driver.current_url) < 38 ) 
-            webPage = driver.current_url
+            
             print('success')
 
         except Exception as e:
@@ -219,7 +219,7 @@ try:
                 fc = ["", "", ""]
             if len(fc) <2: 
                 fc = ["", "", ""]
-            output_sheet.append([a+1, webPage, b['ASIN'], fc[0], fc[1], fc[2], build])
+            output_sheet.append([a+1, driver.current_url, b['ASIN'], fc[0], fc[1], fc[2], build])
             
 finally :
     output.save("Output.xlsx")
