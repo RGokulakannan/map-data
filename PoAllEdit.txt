@@ -169,7 +169,23 @@ if not df_edd[df_edd_po].empty:
     print("Preparing template for POBatchEDDTemplate")
     df_edd[df_edd_po][["PO", "EDD (MM/DD/YYYY)"]].to_csv("template/batchEddUpdate_PO.csv", index=False)
     
-input("Upload ?")
+inr = input("""Select the TimeZone (1 to 5) ..
+1. Europe/London
+2. Europe/Berlin
+3. Africa/Cairo
+4. Europe/Moscow
+5. Asia/Duba
+""")
+
+tiz = {
+"1" : "Europe/London",
+"2" : "Europe/Berlin",
+"3" : "Africa/Cairo",
+"4" : "Europe/Moscow",
+"5" : "Asia/Dubai"
+}
+
+region = tiz.get(str(inr), None)
 
 driver = open_chrome()
 
@@ -212,7 +228,7 @@ for file in all_files:
         tz = driver.find_element(By.ID, "modal-body").find_element(By.TAG_NAME, "select")
         select = Select(tz)
         # Select an option by visible text
-        select.select_by_visible_text("Europe/Berlin")
+        select.select_by_visible_text(region)
         
     sleep(1)
     driver.find_element(By.XPATH, "//button[text()='Submit']").click()
