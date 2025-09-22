@@ -224,7 +224,7 @@ for file in all_files:
     sleep(1)    
     driver.find_element(By.ID, "mib-file-input").send_keys(str(file))
     
-    if file.name in ["batchHandoffUpdate_both.csv", "batchHandoffUpdate_end.csv"]:
+    if file.name in ["batchHandoffUpdate_both.csv", "batchHandoffUpdate_end.csv", "batchEddUpdate_PO.csv", "batchEddUpdate_asin_PO.csv"]:
         tz = driver.find_element(By.ID, "modal-body").find_element(By.TAG_NAME, "select")
         select = Select(tz)
         # Select an option by visible text
