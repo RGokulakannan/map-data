@@ -1,0 +1,27 @@
+from selenium import webdriver
+import browser_cookie3
+from time import sleep
+
+
+bot = webdriver.Firefox()
+cj = browser_cookie3.firefox()
+bot.get('https://midway-auth.amazon.com')
+sleep(20)
+print("Injection start" , end=" .. ")
+for FX_cookie in cj:
+    try:
+        if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+            cookie_dict = {
+                        'domain': FX_cookie.domain,
+                        'name': FX_cookie.name,
+                        'value': FX_cookie.value
+                        }
+            # 'secure': FX_cookie.secure}
+            bot.add_cookie(cookie_dict)
+    except:
+        pass
+
+print("End")
+bot.refresh()
+sleep(200)
+bot.quit()
