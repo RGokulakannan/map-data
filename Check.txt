@@ -1,32 +1,74 @@
-from selenium import webdriver
-import browser_cookie3
-from time import sleep
+import sqlite3
+import os
+import shutil
 
-
-bot = webdriver.Firefox()
-cj = browser_cookie3.firefox()
-bot.get('https://midway-auth.amazon.com')
-sleep(15)
-
-print("Injection start" , end=" .. ")
-for FX_cookie in cj:
+def debug_amazon_cookies():
+    # Find Firefox profile
+    firefox_paths = [
+        os.path.expanduser("~/.mozilla/firefox/"),  # Linux
+        os.path.expanduser("~\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\"),  # Windows
+        os.path.expanduser("~/Library/Application Support/Firefox/Profiles/")  # macOS
+    ]
+    
+    profile_path = None
+    for base_path in firefox_paths:
+        if os.path.exists(base_path):
+            for folder in os.listdir(base_path):
+                if 'default' in folder.lower():
+                    profile_path = os.path.join(base_path, folder)
+                    break
+            if profile_path:
+                break
+    
+    if not profile_path:
+        print("Firefox profile not found")
+        return
+    
+    cookies_db = os.path.join(profile_path, "cookies.sqlite")
+    print(f"Checking: {cookies_db}")
+    
+    if not os.path.exists(cookies_db):
+        print("Cookies database not found")
+        return
+    
+    # Copy to avoid locking
+    temp_db = "debug_cookies.sqlite"
+    shutil.copy2(cookies_db, temp_db)
     
     try:
+        conn = sqlite3.connect(temp_db)
+        cursor = conn.cursor()
         
-        if str(FX_cookie.domain) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.com"]:
-            bot.delete_cookie()
-            print(FX_cookie.domain)
-            cookie_dict = {
-                        'domain': FX_cookie.domain,
-                        'name': FX_cookie.name,
-                        'value': FX_cookie.value
-                        }
-            # 'secure': FX_cookie.secure}
-            bot.add_cookie(cookie_dict)
-    except:
-        pass
+        # Get ALL domains that contain 'amazon'
+        cursor.execute("""
+            SELECT DISTINCT host FROM moz_cookies 
+            WHERE LOWER(host) LIKE '%amazon%' OR LOWER(host) LIKE '%amzn%'
+            ORDER BY host
+        """)
+        
+        domains = [row[0] for row in cursor.fetchall()]
+        print(f"All Amazon-related domains found: {domains}")
+        
+        # Get cookie counts per domain
+        for domain in domains:
+            cursor.execute("SELECT COUNT(*) FROM moz_cookies WHERE host = ?", (domain,))
+            count = cursor.fetchone()[0]
+            print(f"  {domain}: {count} cookies")
+        
+        # Check if cookies exist but with different format
+        cursor.execute("""
+            SELECT host, name FROM moz_cookies 
+            WHERE LOWER(host) LIKE '%amazon%' 
+            LIMIT 10
+        """)
+        
+        sample_cookies = cursor.fetchall()
+        print("\nSample Amazon cookies:")
+        for host, name in sample_cookies:
+            print(f"  {host}: {name}")
+        
+        conn.close()
+    finally:
+        os.remove(temp_db)
 
-print("End")
-bot.refresh()
-sleep(400)
-bot.quit()
+debug_amazon_cookies()
