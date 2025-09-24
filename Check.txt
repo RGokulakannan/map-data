@@ -11,7 +11,7 @@ bot.delete_all_cookies()
 sleep(2)
 print("Injection start" , end=" .. ")
 for FX_cookie in cj:
-    
+    print(FX_cookie.domain + " === ")
     try:
         if str(FX_cookie.domain) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.com"]:
             print(FX_cookie.domain)
