@@ -1,7 +1,18 @@
 import sqlite3
 import os
 import shutil
+
+from selenium import webdriver
+import browser_cookie3
 from time import sleep
+
+
+bot = webdriver.Firefox()
+cj = browser_cookie3.firefox()
+bot.get('https://midway-auth.amazon.com')
+sleep(10)
+bot.delete_all_cookies()
+
 
 def debug_amazon_cookies():
     # Find Firefox profile
@@ -40,39 +51,34 @@ def debug_amazon_cookies():
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
         
-        # Get ALL domains that contain 'amazon'
         cursor.execute("""
-            SELECT DISTINCT host FROM moz_cookies 
-            WHERE LOWER(host) LIKE '%amazon%' OR LOWER(host) LIKE '%amzn%'
-            ORDER BY host
-        """)
+                    SELECT host, name, value
+                    FROM moz_cookies 
+                    WHERE LOWER(host) LIKE '%amazon%' OR LOWER(host) LIKE '%amzn%'
+                    ORDER BY host, name
+                """)
         
-        domains = [row[0] for row in cursor.fetchall()]
-        print(f"All Amazon-related domains found: {domains}")
         
-        # Get cookie counts per domain
-        for domain in domains:
-            cursor.execute("SELECT COUNT(*) FROM moz_cookies WHERE host = ?", (domain,))
-            count = cursor.fetchone()[0]
-            print(f"  {domain}: {count} cookies")
         
-        # Check if cookies exist but with different format
-        cursor.execute("""
-            SELECT host, name FROM moz_cookies 
-            WHERE LOWER(host) LIKE '%amazon%' 
-            LIMIT 10
-        """)
-        
-        sample_cookies = cursor.fetchall()
-        print("\nSample Amazon cookies:")
-        for host, name in sample_cookies:
-            print(f"  {host}: {name}")
+        for host, name, value in cursor.fetchall():
+            try:
+                if str(host) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.com"]:
+                    cookie_dict = {
+                                'domain': host,
+                                'name': name,
+                                'value': value
+                                }
+                    # 'secure': FX_cookie.secure}
+                    bot.add_cookie(cookie_dict)
+            except:
+                pass
         
         conn.close()
     finally:
         os.remove(temp_db)
 
 debug_amazon_cookies()
-
-input("bye")
-sleep(100)
+print("End")
+bot.refresh()
+sleep(200)
+bot.quit()
