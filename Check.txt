@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import shutil
+from time import sleep
 
 def debug_amazon_cookies():
     # Find Firefox profile
