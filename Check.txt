@@ -6,12 +6,12 @@ from time import sleep
 bot = webdriver.Firefox()
 cj = browser_cookie3.firefox()
 bot.get('https://midway-auth.amazon.com')
-sleep(10)
+sleep(15)
+bot.delete_all_cookies()
 print("Injection start" , end=" .. ")
 for FX_cookie in cj:
     try:
-        if 'midway-auth.amazon.com' in str(FX_cookie.domain):
-            print(FC_cookie.domain)
+        if str(FX_cookie.domain) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.com"]:
             cookie_dict = {
                         'domain': FX_cookie.domain,
                         'name': FX_cookie.name,
@@ -24,5 +24,5 @@ for FX_cookie in cj:
 
 print("End")
 bot.refresh()
-sleep(120)
+sleep(200)
 bot.quit()
