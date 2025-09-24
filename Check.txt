@@ -13,7 +13,8 @@ print("Injection start" , end=" .. ")
 for FX_cookie in cj:
     
     try:
-        if str(FX_cookie.domain) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.com"]:
+        
+        if str(FX_cookie.domain) in ["midway-auth.amazon.com", ".midway-auth.amazon.com", ".amazon.work"]:
             print(FX_cookie.domain)
             cookie_dict = {
                         'domain': FX_cookie.domain,
