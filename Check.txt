@@ -72,3 +72,6 @@ def debug_amazon_cookies():
         os.remove(temp_db)
 
 debug_amazon_cookies()
+
+
+sleep(100)
