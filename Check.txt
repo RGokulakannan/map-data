@@ -1,1 +1,30 @@
 
+import os
+import sys
+import glob
+
+def find_all_firefox_cookies_files():
+    if sys.platform.startswith("win"):
+        base_path = os.path.join(os.environ["APPDATA"], "Mozilla", "Firefox", "Profiles")
+    elif sys.platform.startswith("darwin"):
+        base_path = os.path.expanduser("~/Library/Application Support/Firefox/Profiles")
+    else:  # Linux and others
+        base_path = os.path.expanduser("~/.mozilla/firefox")
+
+    # Find all cookies.sqlite files in all profile folders
+    pattern = os.path.join(base_path, "*", "cookies.sqlite")
+    cookies_files = glob.glob(pattern)
+
+    return cookies_files
+
+# Run it
+cookies_sqlite_files = find_all_firefox_cookies_files()
+
+if cookies_sqlite_files:
+    print("Found cookies.sqlite files:")
+    for path in cookies_sqlite_files:
+        print(" -", path)
+else:
+    print("No cookies.sqlite files found.")
+
+sleep(100)
