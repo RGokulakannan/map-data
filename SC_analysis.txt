@@ -1,0 +1,331 @@
+import os
+import time
+import openpyxl
+import pandas as pd
+
+from pathlib import Path
+from time import sleep
+from bs4 import BeautifulSoup as bs
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+os.remove("output_sc.xlsx") if os.path.exists("output_sc.xlsx") else None
+os.remove("Output_sc_issues.xlsx") if os.path.exists("Output_sc_issues.xlsx") else None
+
+check = input("Do you want to perform \n1. Dimension Analysis \n2. Issues Analysis \nEnter 1 or 2 : ")
+
+start_time = time.time()
+print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+
+user_name = os.getlogin()
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": str(download_path),
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def excel_process():
+    df_pd = df_sc[df_sc["matched_asin#1.value"].notna()][[
+    "contributor_name", 
+    "matched_asin#1.value",
+    "item_dimensions.height.unit",
+    "item_dimensions.height.value",
+    "item_dimensions.length.unit",
+    "item_dimensions.length.value",
+    "item_dimensions.width.unit",
+    "item_dimensions.width.value",
+    "item_package_dimensions.height.unit",
+    "item_package_dimensions.height.value",
+    "item_package_dimensions.length.unit",
+    "item_package_dimensions.length.value",
+    "item_package_dimensions.width.unit",
+    "item_package_dimensions.width.value"
+    ]]
+
+    df_pd = df_pd.rename(columns={"matched_asin#1.value": "asin", 
+                                "contributor_name": "cont"})
+
+    matched_rows = df_pd.merge(df, on=["asin", "cont"], how='left', indicator=True)
+    # Create new column based on _merge values
+    matched_rows['is_retail_contribution'] = matched_rows['_merge'].apply(lambda x: 'Yes' if x == 'both' else 'No')
+
+    # Example columns: 'col1', 'col2', 'col3'
+    matched_rows['is_item_dimesion'] = matched_rows[[
+        "item_dimensions.height.unit",
+        "item_dimensions.height.value",
+        "item_dimensions.length.unit",
+        "item_dimensions.length.value",
+        "item_dimensions.width.unit",
+        "item_dimensions.width.value"]].notna().all(axis=1).map({True: 'Yes', False: 'No'})
+
+    # Example columns: 'col1', 'col2', 'col3'
+    matched_rows['is_item_package_dimesion'] = matched_rows[[
+            "item_package_dimensions.height.unit",
+        "item_package_dimensions.height.value",
+        "item_package_dimensions.length.unit",
+        "item_package_dimensions.length.value",
+        "item_package_dimensions.width.unit",
+        "item_package_dimensions.width.value"]].notna().all(axis=1).map({True: 'Yes', False: 'No'})
+
+    cols = list(matched_rows.columns)
+    cols.remove("_merge")
+    # Extract last two columns
+    last_two = cols[-3:]
+    # Extract columns before the last two
+    first_part = cols[:-3]
+    # New order: first two columns + last two columns + remaining columns after first two (if any)
+    new_order = first_part[:2] + last_two + first_part[2:]
+    matched_rows = matched_rows[new_order]
+    matched_rows.to_excel("output_sc.xlsx", index=False)
+    
+# create a folder
+os.makedirs("downloads", exist_ok=True)
+
+download_path = Path(r"downloads").resolve()
+
+# remove all the file
+for file_path in Path(download_path).iterdir():
+    if file_path.is_file():
+        file_path.unlink()
+        
+driver = open_chrome()
+
+wait60 = WebDriverWait(driver, 60, poll_frequency=1)
+
+# read inputfile
+df=pd.read_excel("input_sc.xlsx", dtype=str)
+
+if check == '1':
+    # get Asin List
+    asin_list = ', '.join(df['asin'].dropna().unique().astype(str))
+    # get cont List
+    cont_list = ', '.join(df['cont'].dropna().unique().astype(str))
+
+    # selection central -1
+    driver.get("https://selection.amazon.com/")
+    wait60.until(     EC.presence_of_element_located((By.XPATH, "//title[text()='Selection Central']")) )        
+
+    driver.get("https://selection.amazon.com/contributions-search-results/9e8b8404880aaccb35b760d9da9fd84b")
+    wait60.until(
+        lambda d: len(d.find_elements(By.XPATH, "//button[span[text()='Clear all']]")) > 1
+    )
+    WebDriverWait(driver, 60, poll_frequency=1).until(
+        EC.visibility_of_element_located((By.XPATH, "//button[span[text()='Clear all'] and not (@disabled)]"))
+    )
+
+    time.sleep(2)
+    clear_bt = driver.find_elements(By.XPATH, "//button[span[text()='Clear all']]")
+
+    driver.execute_script("arguments[0].scrollIntoView(true);", clear_bt[0])
+    sleep(1)
+    clear_bt[0].click()
+    sleep(1)
+    driver.execute_script("arguments[0].scrollIntoView(true);", clear_bt[0])
+    sleep(1)
+    clear_bt[1].click()
+    sleep(1)
+
+    e1=driver.find_element(By.XPATH, "//div[div/label/span[text()='ASIN']]//textarea")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    driver.execute_script("""
+        arguments[0].value = arguments[1];
+        arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+        arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+    """, e1, asin_list)
+    e1.send_keys(" ")  # Move focus away to trigger any change events
+    e1.clear()
+
+    e1=driver.find_element(By.XPATH, "//div[div/label/span[text()='Contributor']]//textarea")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    driver.execute_script("""
+        arguments[0].value = arguments[1];
+        arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+        arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+    """, e1, cont_list)
+    e1.send_keys(" ")  # Move focus away to trigger any change events
+    time.sleep(2)
+
+    driver.find_element(By.XPATH, "//span[text()='Search']").click()
+    time.sleep(5)
+    wait60.until(
+        EC.visibility_of_element_located((By.XPATH, "//div[text()='Editing status']"))
+    )
+    time.sleep(2)
+    driver.find_element(By.XPATH, "//span[text()='Exports']").click()
+
+    # Use ActionChains to move to and click the element
+    # target_element = wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Search results']")))
+    # print(target_element.text)
+    # actions = ActionChains(driver)
+    # actions.move_to_element(target_element).click().perform()
+
+    wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Search results']"))).click()
+    time.sleep(2)
+
+    WebDriverWait(driver, 60, poll_frequency=1).until(
+        EC.visibility_of_element_located((By.XPATH, "//span[text()='View export status']")) 
+    )
+    time.sleep(2)
+    driver.find_element(By.XPATH, "//span[text()='View export status']").click()
+    time.sleep(2)
+
+    t1=l1 = 0
+    while t1<60 and l1 == 0:
+        time.sleep(2)
+        t1 += 1
+        l1 = len(driver.find_elements(By.XPATH, "//span[text()='Completed']"))
+
+    f1 = set([f for f in download_path.iterdir() if f.is_file()])
+
+    driver.find_element(By.XPATH, "//span[text()='Result']").click()
+    time.sleep(10)
+
+    ct=0
+    while ct<30:
+        ct+=1
+        sleep(2)
+        f2 = set([f for f in download_path.iterdir() if f.is_file()]) - f1
+        
+        if f2:
+            f2 = f2.pop()
+            print(str(f2))
+            if str(f2).endswith(".xlsx"):
+                break
+    else:
+        print("Failed to read Selection Central Export in download Folder")
+
+    if str(f2).endswith(".xlsx"):
+        df_sc = pd.read_excel(f2)
+        excel_process()
+
+elif check == '2':
+    
+    df = df.rename(columns={"asin": "Asin", "mpid": "MP"})
+    
+    for a in range(5):
+        driver.execute_script(f"window.open('about:blank','{a}');")
+        
+    # Get total Asin 
+    leng = len(df['Asin'])
+
+    # Loop through all asin
+    co = 0
+    driver.switch_to.window(str(0))
+    output = openpyxl.Workbook()
+    sht    = output.active
+    sht.append(['Asin',	'MP',	'Issue Type',	'Severity',	'Tag',	'Description',	'Contributor'])
+
+    for asin2 in range(leng+4):
+        try:
+            if asin2 < leng :
+                # Pasting the url
+                driver.get("https://selection.amazon.com/item/"+str(df.loc[co,'MP'])+"/"+str(df.loc[co,'Asin'])+"/issues")
+            driver.switch_to.window(str ( (co+1)%5) )
+            
+            # Re opening all 5 tabs again to collect data
+            if co > 3 :
+                print("\nProcessing for : " + str(driver.current_url.split('/')[5]) + " remaining Asin "+ str(leng-co+3), end=" : ")
+                WebDriverWait(driver,150, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH,'//section/div[2]/div[2]/div[2]/div/div[1]/div')))
+                asin1 = driver.current_url.split("/")[-2]
+                mp = driver.current_url.split("/")[-3]
+                WebDriverWait(driver,150).until(EC.invisibility_of_element_located((By.CLASS_NAME,'ItemAndContributionsDataLoaderIndicator')))
+                
+                soup = bs(driver.page_source, "lxml")
+                
+                
+                ancestor_4_up = soup.find(text="Item issues ")
+                for _ in range(7):
+                    ancestor_4_up = ancestor_4_up.parent
+
+                elements = ancestor_4_up.find_all("td")
+                if elements :
+                    print("Item issues ", end=" .. ")
+                for e1 in range(0, len(elements), 3):  
+                    if "Error" == elements[e1].text:
+                        sht.append([asin1, mp, 'Item Issues',
+                        elements[e1].text,
+                        elements[e1+1].find("small").text,
+                        elements[e1+1].find("div").find("div").text])
+                
+                
+                ancestor_4_up  = soup.find(text="Contribution issues ")        
+                for _ in range(7):
+                    ancestor_4_up = ancestor_4_up.parent
+
+                elements = ancestor_4_up.find_all("td")
+                if elements :
+                    print("Contribution issues ", end=" .. ")
+                    
+                for e1 in range(0, len(elements), 6):  
+                    if "Error" == elements[e1].text:
+                        sht.append([asin1, mp, 'Contribution issues',
+                        elements[e1].text,
+                        elements[e1+4].find("small").text,
+                        elements[e1+4].find("div").find("div").text,
+                        elements[e1+1].text
+                        ])
+                
+                ancestor_4_up = soup.find(text="Unmatched issues")
+                
+                for _ in range(7):
+                    ancestor_4_up = ancestor_4_up.parent
+
+                elements = ancestor_4_up.find_all("td")
+                if elements :
+                    print("Unmatched issues ", end=" .. ")
+                for e1 in range(0, len(elements), 5):  
+                    if "Error" == elements[e1].text:
+                        sht.append([asin1, mp, 'Unmatched issues',
+                        elements[e1].text,
+                        elements[e1+3].find("small").text,
+                        elements[e1+3].find("div").find("div").text,
+                        elements[e1+1].text,                  
+                        ])
+                
+                
+            
+            if(co%20==19):
+                output.save("Output_sc_issues.xlsx")
+                print("\nStoring data")
+            co+=1
+        except : 
+            print("Error")
+            
+
+
+    output.save("Output_sc_issues.xlsx")
+    output.close()
+
+else:
+    print("Invalid Input")
+
+driver.quit()
+end_time = time.time()
+# Calculate the duration
+duration = end_time - start_time
+print("\nTime duration of program : ", round(duration,2), "seconds")
+print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+time.sleep(10)
+
+
