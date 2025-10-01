@@ -1,0 +1,246 @@
+import os
+import random
+import pandas as pd
+import xlwings as xw
+import browser_cookie3
+import undetected_chromedriver as uc
+
+from pathlib import Path
+from datetime import datetime, timedelta
+from time import sleep
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support import expected_conditions as EC
+
+
+user_name = os.getlogin()
+os.makedirs("download", exist_ok=True)
+download_path = os.path.abspath("download")
+
+untouch_temp = Path(r"doNotOpen\SOP_WePay_DG_Check.xlsx").resolve()
+if not untouch_temp.exists():
+    print("Missing file in", untouch_temp)
+    sleep(10)
+    quit()
+
+
+for file_path in Path(download_path).iterdir():
+    if file_path.is_file():
+        file_path.unlink()
+        # print(f"Deleted {file_path}")
+
+vc = input("Enter Vendor code : ").upper()
+
+options = uc.ChromeOptions()
+
+# options.add_argument('--disable-software-rasterizer') for headless mode
+options.add_argument('--start-maximized')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-gpu')
+# options.add_argument('--headless=new')
+
+
+
+prefs = {
+    "download.default_directory": download_path,
+    "download.prompt_for_download": False,  # avoid prompt
+    "download.directory_upgrade": True,
+    "safebrowsing.enabled": True,           # allow download without blocking
+}
+options.add_experimental_option("prefs", prefs)
+
+driver = uc.Chrome(options=options)
+wait60 = WebDriverWait(driver, 60, poll_frequency=1)
+# driver.set_window_position(-10000, 0)  # effectively hides it
+
+
+cj = browser_cookie3.firefox()
+
+driver.get('https://midway-auth.amazon.com')
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//*[text()='Sign in']")))
+driver.maximize_window()
+driver.delete_all_cookies()
+for FX_cookie in cj:
+    if str(FX_cookie.domain) == "midway-auth.amazon.com" or str(FX_cookie.domain) == ".midway-auth.amazon.com" or str(FX_cookie.domain) == ".amazon.com":
+        cookie_dict = {
+                    'domain': FX_cookie.domain,
+                    'name': FX_cookie.name,
+                    'value': FX_cookie.value
+                    }
+        driver.add_cookie(cookie_dict)
+driver.get("about:blank")
+
+
+driver.get("https://analysis.turismo.a2z.com/?view=Analysis")
+sleep(5)
+for FX_cookie in cj:
+    
+    if str(FX_cookie.domain) in ["analysis.turismo.a2z.com", ".a2z.com", ".turismo.a2z.com", ".analysis.turismo.a2z.com"]:
+        cookie_dict = {                        
+                    'name': FX_cookie.name,
+                    'value': FX_cookie.value
+                    }
+        # 'secure': FX_cookie.secure}
+        driver.add_cookie(cookie_dict)
+driver.get("about:blank")
+
+driver.get(f"https://vops-na.corp.amazon.com/#/search/vendorCode/{vc}")
+mp = wait60.until(EC.visibility_of_element_located((By.XPATH, "//div[span[text()='Retail Country Code']]/following-sibling::span"))).text
+mp = mp.strip()
+print(mp, " - ", vc)
+
+
+driver.get("https://analysis.turismo.a2z.com/?view=Analysis")
+driver.switch_to.window(driver.current_window_handle)
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Build A Business View']")))
+# driver.execute_cdp_cmd("Emulation.setPageScaleFactor", {"pageScaleFactor": 0.9})
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//span[text()='Build A Business View']").click()
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//div[div[text()='Region']]").click()
+# actions = ActionChains(driver)
+# actions.key_down(Keys.CONTROL).send_keys('-').key_up(Keys.CONTROL).perform()
+# driver.find_elements(By.CLASS_NAME, "tuic-select__bar__dropdown-icon")[-2].click()
+
+sleep(random.uniform(1, 2))
+driver.execute_script("document.body.style.zoom='80%'")
+actions = ActionChains(driver)
+actions.key_down(Keys.CONTROL).perform()
+sleep(0.1)
+actions.send_keys('-').perform()
+sleep(0.1)
+actions.key_up(Keys.CONTROL).perform()
+if mp.lower() == "uk":
+    mp1 = "GB"
+driver.find_element(By.XPATH, f"//span[text()='{mp1}']").click()
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//div[text()='Region']").click()
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//div[text()='Choose Product Line(s)']").click()
+sleep(random.uniform(1, 2))
+gl_li = driver.find_element(By.CLASS_NAME, "pl-selector__content").find_elements(By.TAG_NAME, "div")
+
+for a in gl_li:
+    a.click()
+    sleep(random.uniform(1, 2))
+    
+driver.find_element(By.XPATH, "//div[text()='Choose Product Line(s)']").click()
+sleep(random.uniform(1, 2))
+# e1 = driver.find_element(By.XPATH, "//div[text()='Choose Code Option (Optional)']/following-sibling::div/div")
+# driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+# sleep(random.uniform(1, 2))
+# driver.find_element(By.XPATH, "//div[text()='Choose Code Option (Optional)']/following-sibling::div/div").click()
+# sleep(random.uniform(1, 2))
+
+driver.find_elements(By.CLASS_NAME, "tuic-select__bar__dropdown-icon")[-1].click()
+sleep(random.uniform(1, 2))
+
+
+e2 = driver.find_element(By.XPATH, "//span[text()='Vendor Child']")
+driver.execute_script("arguments[0].scrollIntoView(true);", e2)
+sleep(random.uniform(1, 2))
+e2.click()
+
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//input[@placeholder='Type or paste comma-separated codes']").send_keys(vc+"\n")
+sleep(random.uniform(1, 2))
+driver.find_element(By.XPATH, "//span[text()='Apply']").click()
+
+# try:
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME, "groupby-select__bar__selected")))
+driver.find_element(By.XPATH, "//div[@id='columns_and_view_ddl']//button").click()
+sleep(1)
+
+e2=driver.find_element(By.XPATH, "//span[@title='WE PAY FEE']")
+driver.execute_script("arguments[0].scrollIntoView(true);", e2)
+sleep(1)
+driver.find_element(By.XPATH, "//span[@title='WE PAY FEE']").click()
+sleep(1)
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "group-by-selector-CHILD_VENDOR_CODE")))
+sleep(1)
+driver.find_element(By.XPATH, "//span[text()='Export and Schedule']").click()
+sleep(1)
+driver.find_element(By.XPATH, "//div[text()='One Time Export']").click()
+sleep(1)
+driver.find_element(By.XPATH, "//input[@type='radio' and @value='csv']").click()
+sleep(1)
+f1 = set([f for f in Path(download_path).iterdir() if f.is_file()])
+driver.find_element(By.XPATH, "//span[text()='Export Report']").click()
+print("Turismo Export is done")
+
+sleep(10)
+f2 = set([f for f in Path(download_path).iterdir() if f.is_file()])
+
+ct=0
+while ct<20 :
+    sleep(3)
+    ct+=1
+    f2 = f2-f1
+    if f2:
+        f2 = f2.pop()
+        break
+else:
+    print("Failed to read Turismo Export in download Folder")
+    
+df_wepay = pd.read_csv(f2)
+
+
+asin_li = '\n'.join(df_wepay['ASIN'].dropna().astype(str))
+
+
+driver.get("https://pandash.amazon.com/")
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "asinsFilter")))
+
+tbox = driver.find_element(By.ID, "asinsFilter")
+tbox.clear() 
+driver.execute_script("arguments[0].value = arguments[1];", tbox, asin_li)
+sleep(1)
+
+if mp.lower() == "uk":
+    mp = "gb"
+driver.find_element(By.ID, mp.lower()).click()
+sleep(1)
+driver.find_element(By.ID, "cbxDirectResultsExport").click()
+sleep(1)
+f1 = set([f for f in Path(download_path).iterdir() if f.is_file()])
+driver.find_element(By.ID, 'btOk').click()
+sleep(60)
+
+driver.find_element(By.ID, "resultMessage").find_element(By.TAG_NAME, "a").click()
+sleep(10)
+print("Pandash Export is done")
+
+f2 = set([f for f in Path(download_path).iterdir() if f.is_file()])
+f2 = f2 - f1
+f2 = f2.pop()
+
+df_pandas = pd.read_excel(f2)
+
+
+app = xw.App(visible=False)
+wb = xw.Book(untouch_temp)
+analysis_sht = wb.sheets["analysis"]
+pandash_sht = wb.sheets["pandash"]
+
+analysis_sht.range("A3").options(index=False, header=False).value = df_wepay[['ASIN', 'PCOGS(€)(T12M )']]
+pandash_sht.range("A3").options(index=False, header=False).value = df_pandas
+
+
+# Access the sheet named "output"
+out_sht = wb.sheets['Output']
+
+# Refresh all pivot tables in the "output" sheet
+for pt in out_sht.api.PivotTables():    
+    pt.RefreshTable()
+
+wb.save(f"SOP_WEPAY_DG_Check_SIM ID_{vc}.xlsx")
+wb.close()
+app.quit()
+
+driver.quit()
+
+print("The End")
