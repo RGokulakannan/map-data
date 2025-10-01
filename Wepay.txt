@@ -237,7 +237,7 @@ out_sht = wb.sheets['Output']
 for pt in out_sht.api.PivotTables():    
     pt.RefreshTable()
 
-wb.save(f"SOP_WEPAY_DG_Check_SIM ID_{vc}.xlsx")
+wb.save(f"SOP_WEPAY_DG_Check_{vc}.xlsx")
 wb.close()
 app.quit()
 
