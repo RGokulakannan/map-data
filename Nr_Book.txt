@@ -131,11 +131,12 @@ def raise_allocated_buy(f1):
         f1 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
         driver.find_element(By.XPATH, "//h4[normalize-space(text()) = 'ASINs']/following-sibling::button[normalize-space(text()) = 'Export']").click()
         time.sleep(5)
-        f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
+        
         
         ct=0
         while ct<20 :
             time.sleep(3)
+            f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
             ct+=1
             f2 = f2-f1
             if f2:
@@ -208,12 +209,13 @@ def ozustas_Dashboard():
     print(f1)
     driver.find_element(By.XPATH, "//li[text()='Export to CSV']").click()
     time.sleep(5)
-    f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
+    
     print(f2)
     
     ct=0
     while ct<20 :
         time.sleep(3)
+        f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
         ct+=1
         f2 = f2-f1
         if f2:
@@ -291,11 +293,12 @@ while t1<60 and l1 == 0:
 f1 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
 driver.find_element(By.XPATH, "//span[text()='Result']").click()
 time.sleep(5)
-f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
+
 
 ct=0
 while ct<20 :
     time.sleep(3)
+    f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
     ct+=1
     f2 = f2-f1
     if f2:
