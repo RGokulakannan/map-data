@@ -55,13 +55,14 @@ def prepare_file():
 
     df2 = combine_df[~combine_df['asin'].isna()]
     # df2.to_excel("output4.xlsx", index=False)
+    df2 = df2[~df2['ean'].duplicated()]
 
     with pd.ExcelWriter("output_combined.xlsx", engine="xlsxwriter") as writer:
         combine_df.to_excel(writer, sheet_name="All Combined", index=False)
         df1.to_excel(writer, sheet_name="No Match ASIN", index=False)
         df2.to_excel(writer, sheet_name="ASIN Present", index=False)
     
-    df2 = df2[~df2['ean'].duplicated()] 
+    
     if not df2.empty:
         df2 = df2.reset_index(drop=True)
         wb = load_workbook("Allocation_template_do_not_open.xlsx")
