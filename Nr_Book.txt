@@ -206,11 +206,10 @@ def ozustas_Dashboard():
     time.sleep(1)
     
     f1 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
-    print(f1)
+    
     driver.find_element(By.XPATH, "//li[text()='Export to CSV']").click()
     time.sleep(5)
     
-    print(f2)
     
     ct=0
     while ct<20 :
