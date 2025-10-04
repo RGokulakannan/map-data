@@ -58,9 +58,10 @@ def prepare_file():
 
     with pd.ExcelWriter("output_combined.xlsx", engine="xlsxwriter") as writer:
         combine_df.to_excel(writer, sheet_name="All Combined", index=False)
-        df1.to_excel(writer, sheet_name="ASIN Missing", index=False)
+        df1.to_excel(writer, sheet_name="No Match ASIN", index=False)
         df2.to_excel(writer, sheet_name="ASIN Present", index=False)
-        
+    
+    df2 = df2[~df2['ean'].duplicated()] 
     if not df2.empty:
         df2 = df2.reset_index(drop=True)
         wb = load_workbook("Allocation_template_do_not_open.xlsx")
