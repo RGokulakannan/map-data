@@ -1,2 +1,190 @@
-test1 : "Hello",
-test2 : "World"  
+import pandas as pd
+import xlwings as xw
+
+
+# open the excel file for doing magic
+app = xw.App(visible=False)
+wb = xw.Book("NR_Books.xlsx")
+
+# Reading the necessary Excel files
+df_price = pd.read_excel("Mapped_Pricing.xlsx", dtype=str)
+df_bento = pd.read_excel("BentoExport.xlsx")
+df_asin_pre = pd.read_excel("output_combined.xlsx", sheet_name="ASIN Present")
+df_nma = pd.read_excel("output_combined.xlsx", sheet_name="No Match ASIN")
+
+# block of query -1
+df_price = df_price[df_price["is_equal"] == "True"]
+df_bento_filtered = df_bento[df_bento["Status"] == "FILTERED"]
+df_bento = df_bento[df_bento["Status"] == "SUCCESS"]
+
+
+query = ["ean",    "asin",    "avg_inv_cost",    "on_hand_quantity",    "current_pricing",    "pricing_enddate",
+        "recent comp. match",    "competitor_price",    "our_price_with_tax",    "is_retail",    "po comfirmed qty"
+    ]
+
+df_fq_1 = pd.DataFrame(columns=query)
+target_cols = ["avg_inv_cost", "current_pricing", "recent comp. match", "competitor_price", "our_price_with_tax"]
+for col in target_cols:
+    df_fq_1[col] = df_price["avg_inv_cost"]
+df_fq_1[["ean","asin","on_hand_quantity","po comfirmed qty"]] = df_price[["ean", "asin", "on_hand_quantity",  "on_po_qty"]]
+
+df_fq_2 = pd.DataFrame(columns=query)
+df_2 = df_bento[~df_bento['ASIN'].isin(df_fq_1['asin'])]
+df_2 = df_2.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin', how='left')
+
+df_query = pd.concat([df_fq_1, df_2], ignore_index=True)
+df_query["is_retail"] = "yes"
+
+# block of query -0
+
+# Working on Issues PO errors -1
+print("Issue PO error sheet", end=", ")
+ipe_sht = wb.sheets["Issues PO errors"]
+# Clear autofilter if it exists
+if ipe_sht.api.AutoFilter:
+    ipe_sht.api.AutoFilter.ShowAllData()
+    
+df_ipe = ipe_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+
+# Start from C1 (or any cell in column C)
+last_cell = ipe_sht.range('C1').end('down')
+last_row = last_cell.row
+ipe_sht.range(f"A2:G{last_row}").clear_contents()
+
+df_ipe = df_ipe.merge(df_query[['ean', 'asin']], on='ean', how='left')
+
+df_ipe = df_ipe[df_ipe['asin'].isna() & df_ipe['check in march'].isna()]
+
+df_ipe = df_ipe.drop(columns=['asin'])
+
+df_bento_filtered = df_bento_filtered.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin', how='left')
+
+
+ipe_sht_col = ["ean", "Asin", "vendor", "PO ERROR", "error", "OWNING BUYER INPUT",	"check in march"]
+df_ipe1 = pd.DataFrame(columns=ipe_sht_col)
+df_ipe1[["ean", "Asin", "vendor", "error"]] = df_bento_filtered[["ean", "ASIN", "Vendor", "Validation Errors"]]
+df_ipe1["PO ERROR"] = "PO ERROR"
+
+df_ipe2 = pd.DataFrame(columns=ipe_sht_col)
+df_ipe2[["ean", "vendor"]] = df_nma[["ean", "vc"]]
+df_ipe2["PO ERROR"] = "PO ERROR"
+
+df_ipe = pd.concat([df_ipe, df_ipe1, df_ipe2], ignore_index=True)
+
+ipe_sht.range("A2").options(index=False, header=False).value = df_ipe
+print("Ok")
+# Working on Issues PO errors -0
+
+
+
+# sit the df_query in the querydata sheet -1
+print("Query sheet", end=", ")
+querySht = wb.sheets["querydata"]
+if querySht.api.AutoFilter:
+    querySht.api.AutoFilter.ShowAllData()
+for table in querySht.api.ListObjects:
+        # print("Old Table Name:", table.Name)
+    # Rename the first table (or any specific one you want)
+    if table.Name.startswith('_'):  # Typical auto-generated names
+        table.Name = 'ASINTable'    # Choose your custom name
+        # print("Renamed to:", table.Name)
+querySht.range("A2").options(index=False, header=False).value = df_query
+print("Ok")
+# sit the df_query in the querydata sheet -0
+
+# working on Enter here sheet -1
+print("Enter here", end=", ")
+enter_sht = wb.sheets["ENTER HERE"]
+if enter_sht.api.AutoFilter:
+    enter_sht.api.AutoFilter.ShowAllData()
+df_enter_here = enter_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+df_enter_here = df_enter_here[df_enter_here["Status"] == "PO Requested"]
+print("Ok")
+# working on Enter here sheet -0
+
+# Working on PO Request Template -1
+print("PO Request Template", end=", ")
+prt_sht = wb.sheets["PO Request Template"]
+# Clear autofilter if it exists
+if prt_sht.api.AutoFilter:
+    prt_sht.api.AutoFilter.ShowAllData()
+last_row = prt_sht.range('E' + str(prt_sht.cells.last_cell.row)).end('up').row
+if last_row>2:
+    print(f"deleted E2 to E{last_row}", end=", ")
+    prt_sht.range(f"E2:E{last_row}").clear_contents()
+    
+prt_sht.range("E2").options(index=False, header=False).value = df_enter_here[["ISBN/EAN"]]
+df_prt = prt_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+df_prt = df_prt.dropna(subset=["EAN"])
+df_prt.drop(["Brand",	"Brand Code",	"EAN"], axis=1, inplace=True, errors='ignore')
+df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'] = df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'].clip(upper=10)
+df_prt.to_excel("PO Request Template.xlsx", index=False)
+
+print("Ok")
+# Working on PO Request Template -0
+
+
+
+
+
+
+wb.save("NR_Books_Processed.xlsx")
+wb.close()
+app.quit()
+
+
+
+
+# sheet.range("A2").options(index=False, header=False).value = df_final_data
+
+# # working on issues PO error
+# ipe = wb.sheets["Issues PO errors"]
+# # Find last row with data in column A
+# last_row = ipe.range('A' + str(ipe.cells.last_cell.row)).end('up').row
+
+# # Write the formula in G2
+# formula = '=VLOOKUP(A2,ASINTable[[#All],[ean]:[asin]],2,0)'
+# ipe.range('G2').formula = formula
+
+# # Fill down the formula to the last row
+# ipe.range(f'G2:G{last_row}').formula = formula
+
+
+# ipe_sht_col = ["ean", "Asin", "vendor", "PO ERROR", "error"]
+# df_ipe_fin_1 = pd.DataFrame(columns=ipe_sht_col)
+# df_ipe_fin_1[["ean", "vendor"]] = df_com[["ean", "vc"]]
+
+# df_ipe_fin_2 = pd.DataFrame(columns=ipe_sht_col)
+# df_bt = pd.read_excel("BentoExport.xlsx")
+# ean_map =  pd.read_excel("output_combined.xlsx", sheet_name="All Combined")
+# df_bt = df_bt.merge(ean_map, left_on="ASIN", right_on="asin", how='left')
+# df_ipe_fin_2[["ean", "Asin", "vendor", "error"]] = df_bt[["ean", "ASIN", "Vendor", "Validation Errors"]]
+
+# df_ipe = pd.concat([df_ipe_fin_1, df_ipe_fin_2], ignore_index=True)
+# df_ipe["PO ERROR"] = "PO ERROR"
+
+# last_row = ipe.range('A' + str(ipe.cells.last_cell.row)).end('up').row
+
+
+# df_out_ipe = ipe.range("A1:G" + str(last_row)).options(pd.DataFrame, header=1, index=False).value
+# df_ipe = pd.concat([df_out_ipe, df_ipe], ignore_index=True)
+
+# ipe.range("A2:G" + str(last_row)).clear_contents()
+
+# # sit the df_ipe in the Issues PO Error
+# ipe.range("A2").options(index=False, header=False).value = df_ipe
+
+# # get enter here sheet
+# eh = wb.sheets["ENTER HERE"] 
+# df_eh = eh.range("A1").options(pd.DataFrame, header=1, index=False).value
+# print(df_eh.tail(5))
+# # df_eh_final = df_eh[df_eh["Status"] == "PO Requested"]
+
+# # # go to PO Request Template
+# # prt = wb.sheets["PO Request Template"]
+# # prt_e_lr = eh.range("E1").expand('down').count
+# # prt.range("E1:E" + str(prt_e_lr)).clear_contents()
+# # prt.range("E2").options(index=False, header=False).value = df_eh_final["ISBN/EAN"]
+
+# # df_prt = prt.range("A1").options(pd.DataFrame, header=1, index=False).value
+# # df_prt = df_prt.dropna(subset=["EAN"])
