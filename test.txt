@@ -117,7 +117,7 @@ prt_sht.range("E2").options(index=False, header=False).value = df_enter_here[["I
 df_prt = prt_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
 df_prt = df_prt.dropna(subset=["EAN"])
 df_prt.drop(["Brand",	"Brand Code",	"EAN"], axis=1, inplace=True, errors='ignore')
-df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'] = df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'].clip(upper=10)
+
 df_prt.to_excel("PO Request Template.xlsx", index=False)
 
 print("Ok")
@@ -132,59 +132,3 @@ wb.save("NR_Books_Processed.xlsx")
 wb.close()
 app.quit()
 
-
-
-
-# sheet.range("A2").options(index=False, header=False).value = df_final_data
-
-# # working on issues PO error
-# ipe = wb.sheets["Issues PO errors"]
-# # Find last row with data in column A
-# last_row = ipe.range('A' + str(ipe.cells.last_cell.row)).end('up').row
-
-# # Write the formula in G2
-# formula = '=VLOOKUP(A2,ASINTable[[#All],[ean]:[asin]],2,0)'
-# ipe.range('G2').formula = formula
-
-# # Fill down the formula to the last row
-# ipe.range(f'G2:G{last_row}').formula = formula
-
-
-# ipe_sht_col = ["ean", "Asin", "vendor", "PO ERROR", "error"]
-# df_ipe_fin_1 = pd.DataFrame(columns=ipe_sht_col)
-# df_ipe_fin_1[["ean", "vendor"]] = df_com[["ean", "vc"]]
-
-# df_ipe_fin_2 = pd.DataFrame(columns=ipe_sht_col)
-# df_bt = pd.read_excel("BentoExport.xlsx")
-# ean_map =  pd.read_excel("output_combined.xlsx", sheet_name="All Combined")
-# df_bt = df_bt.merge(ean_map, left_on="ASIN", right_on="asin", how='left')
-# df_ipe_fin_2[["ean", "Asin", "vendor", "error"]] = df_bt[["ean", "ASIN", "Vendor", "Validation Errors"]]
-
-# df_ipe = pd.concat([df_ipe_fin_1, df_ipe_fin_2], ignore_index=True)
-# df_ipe["PO ERROR"] = "PO ERROR"
-
-# last_row = ipe.range('A' + str(ipe.cells.last_cell.row)).end('up').row
-
-
-# df_out_ipe = ipe.range("A1:G" + str(last_row)).options(pd.DataFrame, header=1, index=False).value
-# df_ipe = pd.concat([df_out_ipe, df_ipe], ignore_index=True)
-
-# ipe.range("A2:G" + str(last_row)).clear_contents()
-
-# # sit the df_ipe in the Issues PO Error
-# ipe.range("A2").options(index=False, header=False).value = df_ipe
-
-# # get enter here sheet
-# eh = wb.sheets["ENTER HERE"] 
-# df_eh = eh.range("A1").options(pd.DataFrame, header=1, index=False).value
-# print(df_eh.tail(5))
-# # df_eh_final = df_eh[df_eh["Status"] == "PO Requested"]
-
-# # # go to PO Request Template
-# # prt = wb.sheets["PO Request Template"]
-# # prt_e_lr = eh.range("E1").expand('down').count
-# # prt.range("E1:E" + str(prt_e_lr)).clear_contents()
-# # prt.range("E2").options(index=False, header=False).value = df_eh_final["ISBN/EAN"]
-
-# # df_prt = prt.range("A1").options(pd.DataFrame, header=1, index=False).value
-# # df_prt = df_prt.dropna(subset=["EAN"])
