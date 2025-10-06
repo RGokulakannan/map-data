@@ -88,10 +88,13 @@ for FX_cookie in cj:
         driver.add_cookie(cookie_dict)
 driver.get("about:blank")
 
-driver.get(f"https://vops-na.corp.amazon.com/#/search/vendorCode/{vc}")
-mp = wait60.until(EC.visibility_of_element_located((By.XPATH, "//div[span[text()='Retail Country Code']]/following-sibling::span"))).text
-mp = mp.strip()
-print(mp, " - ", vc)
+try:
+    driver.get(f"https://vops-na.corp.amazon.com/#/search/vendorCode/{vc}")
+    mp = wait60.until(EC.visibility_of_element_located((By.XPATH, "//div[span[text()='Retail           Country Code']]/following-sibling::span"))).text
+    mp = mp.strip()
+    print(mp, " - ", vc)
+except:
+    mp = input("Enter the MP, VOPs tool fetching data error")
 
 
 driver.get("https://analysis.turismo.a2z.com/?view=Analysis")
