@@ -108,6 +108,10 @@ prt_sht = wb.sheets["PO Request Template"]
 # Clear autofilter if it exists
 if prt_sht.api.AutoFilter:
     prt_sht.api.AutoFilter.ShowAllData()
+
+if prt_sht.cells(1,23).value == "Vendor":
+        prt_sht.cells(1,23).value = "Vendor1"
+
 last_row = prt_sht.range('E' + str(prt_sht.cells.last_cell.row)).end('up').row
 if last_row>2:
     print(f"deleted E2 to E{last_row}", end=", ")
@@ -117,6 +121,15 @@ prt_sht.range("E2").options(index=False, header=False).value = df_enter_here[["I
 df_prt = prt_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
 df_prt = df_prt.dropna(subset=["EAN"])
 df_prt.drop(["Brand",	"Brand Code",	"EAN"], axis=1, inplace=True, errors='ignore')
+# Create mask for rows that need clipping    
+mask = (df_prt['Vendor'] == "N82X0") & (df_prt['Quantity'] > 10)
+# Get the row indices where changes will be made
+changed_rows = list(map(lambda x: x+2, df_prt.index[mask].tolist()))
+    
+# Apply changes and report if any
+if changed_rows:
+        df_prt.loc[mask, 'Quantity'] = df_prt.loc[mask, 'Quantity'].clip(upper=10)
+        print(f"Adjusted 'Quantity' to 10 for vendor 'N82X0' in rows: {changed_rows}")
 
 df_prt.to_excel("PO Request Template.xlsx", index=False)
 
