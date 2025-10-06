@@ -94,7 +94,7 @@ try:
     mp = mp.strip()
     print(mp, " - ", vc)
 except:
-    mp = input("Enter the MP, VOPs tool fetching data error")
+    mp = input("Enter the MP, VOPs tool fetching data error : ")
 
 
 driver.get("https://analysis.turismo.a2z.com/?view=Analysis")
