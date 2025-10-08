@@ -229,7 +229,7 @@ def ozustas_Dashboard():
             
     return f2
 
-print("Dedicated to Chef Keerthana 👩‍🍳")
+
 # Ensure the download directory exists
 downloadDir = os.path.abspath("download")
 user_name = os.getlogin()
