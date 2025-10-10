@@ -1,6 +1,13 @@
 import pandas as pd
 import xlwings as xw
 
+"""
+dependency file
+1. NR_Books.xlsx
+2. Mapped_Pricing.xlsx
+3. output_combined.xlsx
+
+"""
 
 # open the excel file for doing magic
 app = xw.App(visible=False)
@@ -34,6 +41,8 @@ df_2 = df_2.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin',
 
 df_query = pd.concat([df_fq_1, df_2], ignore_index=True)
 df_query["is_retail"] = "yes"
+df_query = df_query.astype("string")
+df_query['ean'] = df_query['ean'].astype(str).str.replace(r'\.0$', '', regex=True)
 
 # block of query -0
 
@@ -45,6 +54,8 @@ if ipe_sht.api.AutoFilter:
     ipe_sht.api.AutoFilter.ShowAllData()
     
 df_ipe = ipe_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+df_ipe = df_ipe.astype("string")
+df_ipe['ean'] = df_ipe['ean'].astype(str).str.replace(r'\.0$', '', regex=True)
 
 # Start from C1 (or any cell in column C)
 last_cell = ipe_sht.range('C1').end('down')
@@ -56,6 +67,7 @@ df_ipe = df_ipe.merge(df_query[['ean', 'asin']], on='ean', how='left')
 df_ipe = df_ipe[df_ipe['asin'].isna() & df_ipe['check in march'].isna()]
 
 df_ipe = df_ipe.drop(columns=['asin'])
+
 
 df_bento_filtered = df_bento_filtered.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin', how='left')
 
@@ -98,6 +110,8 @@ enter_sht = wb.sheets["ENTER HERE"]
 if enter_sht.api.AutoFilter:
     enter_sht.api.AutoFilter.ShowAllData()
 df_enter_here = enter_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+df_enter_here = df_enter_here.astype(str)
+
 df_enter_here = df_enter_here[df_enter_here["Status"] == "PO Requested"]
 print("Ok")
 # working on Enter here sheet -0
@@ -108,10 +122,6 @@ prt_sht = wb.sheets["PO Request Template"]
 # Clear autofilter if it exists
 if prt_sht.api.AutoFilter:
     prt_sht.api.AutoFilter.ShowAllData()
-
-if prt_sht.cells(1,23).value == "Vendor":
-        prt_sht.cells(1,23).value = "Vendor1"
-
 last_row = prt_sht.range('E' + str(prt_sht.cells.last_cell.row)).end('up').row
 if last_row>2:
     print(f"deleted E2 to E{last_row}", end=", ")
@@ -119,29 +129,19 @@ if last_row>2:
     
 prt_sht.range("E2").options(index=False, header=False).value = df_enter_here[["ISBN/EAN"]]
 df_prt = prt_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
+df_prt = df_prt.astype(str)
+
 df_prt = df_prt.dropna(subset=["EAN"])
 df_prt.drop(["Brand",	"Brand Code",	"EAN"], axis=1, inplace=True, errors='ignore')
-# Create mask for rows that need clipping    
-mask = (df_prt['Vendor'] == "N82X0") & (df_prt['Quantity'] > 10)
-# Get the row indices where changes will be made
-changed_rows = list(map(lambda x: x+2, df_prt.index[mask].tolist()))
-    
-# Apply changes and report if any
-if changed_rows:
-        df_prt.loc[mask, 'Quantity'] = df_prt.loc[mask, 'Quantity'].clip(upper=10)
-        print(f"Adjusted 'Quantity' to 10 for vendor 'N82X0' in rows: {changed_rows}")
-
+# df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'] = df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'].clip(upper=10)
 df_prt.to_excel("PO Request Template.xlsx", index=False)
 
 print("Ok")
 # Working on PO Request Template -0
 
-
-
-
-
-
 wb.save("NR_Books_Processed.xlsx")
 wb.close()
 app.quit()
+
+
 
