@@ -99,6 +99,8 @@ def method_two():
             if not task:
                 if len(driver.current_url.split("/")) == 6:
                     task = driver.current_url.split("/")[-1]
+        except:
+            driver.save_screenshot(f"error_file_path.name.png")
         finally:
             return task    
     out_df = {
@@ -226,4 +228,5 @@ button4.pack(pady=5)
 root.mainloop()
 
 driver.quit()
+
 
