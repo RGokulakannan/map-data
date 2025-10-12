@@ -118,8 +118,8 @@ actions.send_keys('-').perform()
 sleep(0.1)
 actions.key_up(Keys.CONTROL).perform()
 if mp.lower() == "uk":
-    mp1 = "GB"
-driver.find_element(By.XPATH, f"//span[text()='{mp1}']").click()
+    mp = "GB"
+driver.find_element(By.XPATH, f"//span[text()='{mp}']").click()
 sleep(random.uniform(1, 2))
 driver.find_element(By.XPATH, "//div[text()='Region']").click()
 sleep(random.uniform(1, 2))
