@@ -1,0 +1,431 @@
+import pandas as pd
+import os
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from pathlib import Path
+from time import sleep
+from selenium.webdriver.support.ui import Select
+import sys
+from selenium.webdriver import Keys
+
+from selenium.webdriver.common.action_chains import ActionChains
+import time
+import ctypes
+from tqdm import tqdm
+
+user_name = os.getlogin()
+
+def delete_all_files_in_folder(folder_path):
+    folder = Path(folder_path)
+    # Check if the folder exists
+    if folder.exists() and folder.is_dir():
+        # Iterate over all files in the folder and delete them
+        for file in folder.iterdir():
+            if file.is_file():  # Ensure it's a file, not a directory
+                file.unlink()  # Deletes the file
+                print(f"Deleted: {file}")
+    else:
+        print(f"The folder {folder_path} does not exist or is not a directory.")
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--start-maximized')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')    
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+os.makedirs("template", exist_ok=True)
+os.makedirs("download", exist_ok=True)
+
+# Example usage
+folder_path = "template"
+download_path = os.path.abspath("download")
+downloadDir = Path(download_path)
+
+delete_all_files_in_folder(folder_path)
+delete_all_files_in_folder(download_path)
+
+
+if os.path.exists("input_cost_qty.xlsx"):
+    os.remove("input_cost_qty.xlsx")
+
+df = pd.read_excel("PO_All_Edit_input.xlsm", dtype=str)
+
+# Find 'PO' values that have more than 1 unique 'sim_id'
+a_with_multiple_b = df.groupby('PO')['sim_id'].nunique()
+a_with_multiple_b = a_with_multiple_b[a_with_multiple_b > 1].index
+df_filtered = df[df['PO'].isin(a_with_multiple_b)]
+if not df_filtered.empty:
+    print(df_filtered[["PO", "sim_id"]].to_string(index=False))
+    result = ctypes.windll.user32.MessageBoxW(
+        0,
+        "Hello, the same PO is found in multiple sims, which will cause ambiguity in the output file. Please see the console for more info",
+        "Warning",
+        0x00000001 | 0x00000030  # MB_OKCANCEL | MB_ICONWARNING
+    )
+    
+    if result != 1:
+        print("Operation is terminated")
+        time.sleep(10)
+        sys.exit()
+    
+
+# PO handoff windows 1
+
+df_dw = df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]]
+
+df_dw_all = df_dw[
+    df[["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].notna().all(axis=1)
+][["PO", "Handoff window start date (MM/DD/YYYY)", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
+
+if not df_dw_all.empty:
+    print("Preparing template for PO start and end date")
+    df_dw_all["Handoff window start date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_all['Handoff window start date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_all["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_all['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_all.to_csv("template/batchHandoffUpdate_both.csv", index=False)
+    
+df_dw_end = df_dw[
+    df[["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].notna().all(axis=1)
+][["PO", "Handoff window end date (MM/DD/YYYY)", "Email Notification? (Y/N)"]].copy()
+
+if not df_dw_end.empty:
+    print("Preparing template for PO end date")
+    df_dw_end["Handoff window end date (MM/DD/YYYY)"] = pd.to_datetime(df_dw_end['Handoff window end date (MM/DD/YYYY)']).dt.strftime('%m/%d/%Y')
+    df_dw_end.to_csv("template/batchHandoffUpdate_end.csv", index=False)
+
+# PO Cancel 2
+
+df_po_cancel = df[["PO", "Cancel", "ASIN", "Reason"]]
+df_po_cancel = df_po_cancel[df_po_cancel["Cancel"].notna()]
+df_po_cancel_only_item = df_po_cancel["ASIN"].notna()
+df_po_cancel_all_item  = ~df_po_cancel_only_item
+
+if not df_po_cancel[df_po_cancel_only_item].empty:
+    print("Preparing template for PO Cancel - Only Item")
+    df_po_cancel[df_po_cancel_only_item][["PO","ASIN", "Reason"]].to_csv("template/batchCancel_item.csv", index=False)
+
+if not df_po_cancel[df_po_cancel_all_item].empty:
+    print("Preparing template for PO Cancel - All Items")
+    df_po_cancel[df_po_cancel_all_item][["PO", "Reason"]].to_csv("template/batchCancel_all.csv", index=False)
+
+# PO UnCancel 3
+df_po_uncancel = df[
+    (df[["PO", "Uncancel"]].notna().all(axis=1)) & 
+    (df["Uncancel"] == "Y")
+][["PO"]]
+if not df_po_uncancel.empty:
+    print("Preparing template for PO-UnCancel")
+    df_po_uncancel[["PO"]].to_csv("template/batchUncancel.csv", index=False)
+
+# PO confirm 4
+df_po_confirm = df[
+    (df[["PO", "Confirm"]].notna().all(axis=1)) & 
+    (df["Confirm"] == "Y")
+][["PO"]]
+if not df_po_confirm.empty:
+    print("Preparing template for PO Confirm")
+    df_po_confirm["Accept or Reject? (A/R)"] = "A"
+    df_po_confirm.to_csv("template/batchAutoConfirm.csv", index=False)
+
+# PO Unconfirm 5
+df_po_unconfirm = df[
+    (df[["PO", "Unconfirm"]].notna().all(axis=1)) & 
+    (df["Unconfirm"] == "Y")
+][["PO"]]
+if not df_po_unconfirm.empty:
+    print("Preparing template for PO-Unconfirm")
+    df_po_unconfirm.to_csv("template/batchUnconfirm.csv", index=False)
+
+
+# PO Release 6
+df_po_relese = df[
+    (df[["PO", "Release"]].notna().all(axis=1)) & 
+    (df["Release"] == "Y")
+][["PO"]]
+if not df_po_relese.empty:
+    print("Preparing template for PO Release")
+    df_po_relese.to_csv("template/batchRelease.csv", index=False)
+
+
+# FC Flipper 7
+df_fc_flipper = df[
+    (df[["PO", "New Fc", "Reason2"]].notna().all(axis=1))
+][["PO", "New Fc", "Reason2"]]
+df_fc_flipper = df_fc_flipper.rename(columns={'Reason2': 'Reason'})
+if not df_fc_flipper.empty:
+    print("Preparing template for FC Flipper")
+    df_fc_flipper.to_csv("template/batchFcFlip.csv", index=False)
+
+
+# Cost and Quantity Update 8
+df_qty_cost = df[["PO", "ASIN", 'quantity', 'cost', 'sim_id']]
+df_qty_cost = df_qty_cost[
+    df_qty_cost[["PO", "ASIN"]].notna().all(axis=1)   # PO and ASIN both not null
+    & (
+        df_qty_cost[["quantity", "cost"]].notna().any(axis=1)  # either quantity or cost not null
+    )
+]
+df_qty_cost.to_excel("input_cost_qty.xlsx", index=False)
+
+
+# PO Cancel 9
+
+df_edd = df[["PO", "ASIN", 'EDD (MM/DD/YYYY)']]
+df_edd = df_edd[df_edd["EDD (MM/DD/YYYY)"].notna()]
+df_edd_asin_po = df_edd["ASIN"].notna()
+df_edd_po  = ~df_edd_asin_po
+
+if not df_edd[df_edd_asin_po].empty:
+    print("Preparing template for POAsinBatchEDDTemplate")
+    df_edd[df_edd_asin_po][["PO","ASIN", "EDD (MM/DD/YYYY)"]].to_csv("template/batchEddUpdate_asin_PO.csv", index=False)
+
+if not df_edd[df_edd_po].empty:
+    print("Preparing template for POBatchEDDTemplate")
+    df_edd[df_edd_po][["PO", "EDD (MM/DD/YYYY)"]].to_csv("template/batchEddUpdate_PO.csv", index=False)
+
+
+if not df_dw_all.empty or not df_dw_end.empty or not df_edd[df_edd_asin_po].empty or not df_edd[df_edd_po].empty:
+    inr = input("""Kindly confirm to upload by selecting the TimeZone (1 to 5) ..
+    1. Europe/London
+    2. Europe/Berlin
+    3. Africa/Cairo
+    4. Europe/Moscow
+    5. Asia/Dubai
+    """)
+
+    tiz = {
+    "1" : "Europe/London",
+    "2" : "Europe/Berlin",
+    "3" : "Africa/Cairo",
+    "4" : "Europe/Moscow",
+    "5" : "Asia/Dubai"
+    }
+
+    region = tiz.get(str(inr), None)
+    if not region:
+        print("Invalid Selection")
+        sleep(10)
+        sys.exit()
+
+print("")
+rn = input("""1. na
+2. fe
+3. eu
+Choose the region by number input: """)
+
+if rn not in ["1", "2", "3"]:
+    print("Invalid Selection")
+    time.sleep(10)
+    sys.exit()
+    
+rn_map = {
+    "1" : "na",
+    "2":"fe",
+    "3":"eu"
+}
+
+
+driver = open_chrome()
+
+driver.get(f"https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/home")
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.presence_of_element_located((By.ID, "sc-content-container")))
+
+# Define the directory
+directory = Path('template')  # Replace with your actual path
+
+map_process = {
+    "batchHandof": "batchHandoffUpdate",
+    "batchCancel": "batchCancel",
+    "batchUncanc": "batchUncancel",
+    "batchAutoCo": "batchAutoConfirm",
+    "batchUnconf": "batchUnconfirm",
+    "batchReleas": "batchRelease",
+    "batchFcFlip": "batchFcFlip",
+    "batchEddUpd": "batchEddUpdate",
+    "batchCostUp": "batchCostUpdate"
+}
+
+# List all files with absolute paths
+all_files = [file.resolve() for file in directory.rglob('*') if file.is_file() and file.name != 'batchUncancel.csv']
+
+if Path('template/batchUncancel.csv').exists():
+    all_files.insert(0, Path('template/batchUncancel.csv').resolve())
+    
+final_task_id = []
+
+# Print the results
+for file in all_files:
+    print(f"Processing file: {file.name}")
+    driver.get(f"https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/action/{map_process[file.name[0:11]]}")
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//button[text()='Upload Batch Update File']"))).click()
+    
+    sleep(1)    
+    driver.find_element(By.ID, "mib-file-input").send_keys(str(file))
+    
+    if file.name in ["batchHandoffUpdate_both.csv", "batchHandoffUpdate_end.csv", "batchEddUpdate_PO.csv", "batchEddUpdate_asin_PO.csv"]:
+        tz = driver.find_element(By.ID, "modal-body").find_element(By.TAG_NAME, "select")
+        select = Select(tz)
+        # Select an option by visible text
+        select.select_by_visible_text(region)        
+
+    sleep(1)
+    driver.find_element(By.XPATH, "//button[text()='Submit']").click()
+    
+    sleep(1)
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME, "alert-success")))
+    
+    if file.name == "batchUncancel.csv":
+        print("Un-Cancelling the PO, waiting for 60 seconds")
+        sleep(60)
+        
+    url1 = driver.find_element(By.CLASS_NAME, "alert-success").find_element(By.TAG_NAME, "a").text
+    
+    print(f"Processed file: {file.name}, URL: {url1}")
+    final_task_id.append(url1)
+    
+if all_files:
+    print("Upload is complete, waiting for 30 seconds before downloading results")
+    sleep(30)
+
+outputFile = []
+
+for url in final_task_id:
+    
+    print(url, end = " .. ")
+    driver.get("about:blank")
+    driver.get(f"https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/pole/view?taskId={url}")
+    WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//th[text()='Task ID']")))
+    
+    ct = 0
+    while ct < 10:
+        if not len(driver.find_elements(By.XPATH, "//td[text()='RUNNING']")):
+            break
+        ct+=1
+        sleep(15)
+        driver.refresh()
+        sleep(7)
+    
+    if ct > 9:
+        print("Task is still running, skipping download")
+        continue
+    sleep(3)
+    if len(driver.find_elements(By.XPATH, "//kat-button[@label='Export Results']")):
+        driver.execute_script("window.scrollBy(0, 100);")
+        sleep(1)
+        driver.find_element(By.XPATH, "//kat-button[@label='Export Results']").click()
+        sleep(1)
+        
+        f1 = {f for f in downloadDir.iterdir() if f.is_file()}
+        driver.find_element(By.XPATH, "//button[text()='Download Excel']").click()
+        sleep(5)
+        ct = 0
+        while ct<30:
+            f2 = {f for f in downloadDir.iterdir() if f.is_file()}
+            f3 = f2 - f1
+            if f3:
+                f3 = next(iter(f3), None) # Returns None if set is empty
+                if str(f3).endswith(".xlsx"):
+                    break
+            sleep(1)
+            ct+=1
+            
+        if ct<30 : outputFile.append(pd.read_excel(f3))
+        print("ok", f3)
+    else:
+        print("Download is missing for ", url)
+
+if outputFile:
+    # pd.concat(outputFile, ignore_index=True).to_excel("Output.xlsx", index=False)
+    df_fin = pd.concat(outputFile, ignore_index=True)
+    df_final = df_fin.merge(df[['PO', 'sim_id']], on='PO', how='left')
+
+    time1 = pd.Timestamp.now()
+    timestamp = time1.strftime('%y-%m-%d_%H-%M-%S')
+    df_final['Time Stamp'] = time1
+    df_final.to_excel(f"Output_{timestamp}.xlsx", index=False)
+
+
+df = df_qty_cost
+if not df.empty:
+    # handle cost section to upload
+    
+    # looping over given PO
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="PO's"):
+        try:    
+            # to open the url in browser
+            driver.get('about:blank')      
+            driver.get(f'https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/action/confirmPo?poId={row["PO"]}')
+            WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'react-grid-Viewport')))
+            # Get the entire h4 element
+            condition_element = driver.find_element(By.XPATH, "//h4[b[contains(., 'Condition:')]]")
+            # Extract the text, remove the label, and strip whitespace
+            condition_text = condition_element.text.replace("Condition:", "").strip()
+            df.at[index, "condition"] = condition_text
+            df.at[index, "sim_id"] = row["sim_id"]
+            
+            if condition_text.lower() not in ["submitted", "completelyconfirmed", "partiallyconfirmed"]:
+                continue
+            WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Filter Rows']"))).click()
+            time.sleep(0.4)
+            
+            driver.find_element(By.XPATH,'//div/div/div/div/div[1]/div[2]/div/div[1]/div[1]/div/div').click()
+            driver.find_element(By.XPATH,'//div[1]/div[1]/div/div/div[2]/input').send_keys(str(row['ASIN']) +'\n')
+            
+            time.sleep(0.4)
+                    
+            li = driver.find_element(By.CLASS_NAME,'react-grid-Viewport').find_elements(By.TAG_NAME,'span')
+            
+            if (len(li)>0 and len(li)<15):
+                
+                try:
+                    df.at[index, "ack_code"] = li[3].text                
+                    if(li[3].text == 'AC'):
+                        
+                        # handle the qty
+                        if not pd.isna(row["quantity"]):
+                            df.at[index, "pre_qty"] = li[6].text
+                            action = ActionChains(driver)
+                            action.double_click(li[6]).send_keys(row["quantity"]).send_keys(Keys.ENTER).perform()
+                            time.sleep(0.2)
+                            df.at[index, "is_qty_updated"] = "Yes"
+                            
+                            
+                        if not pd.isna(row["cost"]):
+                            df.at[index, "pre_cost"] = li[13].text
+                            action = ActionChains(driver)
+                            action.double_click(li[13]).send_keys(row["cost"]).send_keys(Keys.ENTER).perform()
+                            time.sleep(0.2)
+                            df.at[index, "is_cost_updated"] = "Yes"
+                            
+                    WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'BottomButton-Submit'))).click()
+                    WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'POLE task launched! View status in')]")))
+                                
+                except Exception as e:
+                    pass
+        
+        except Exception as e:
+            pass    
+
+    df.to_excel(f"PO_Cost_Qty_Output.xlsx",index=False)   
+
+driver.quit()
+sleep(10)
