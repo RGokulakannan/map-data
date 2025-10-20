@@ -1,0 +1,145 @@
+import os
+import time
+import shutil
+import openpyxl
+import selenium
+import pyautogui
+import pandas as pd
+import webdriver_manager
+import re
+
+from time import sleep
+from tqdm import tqdm
+from pathlib import Path
+from datetime import datetime, timedelta
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver import Keys
+
+user_name = os.getlogin()
+
+
+def today_nextSunday():
+    # Get today's date
+    today = datetime.today()
+
+    # Find the next Sunday
+    days_ahead = 6 - today.weekday()  # weekday(): Monday is 0, Sunday is 6
+    if days_ahead < 0:
+        days_ahead += 7
+    next_sunday = today + timedelta(days=days_ahead)
+
+    # Add 14 days (bi-weekly) from that Sunday
+    biweekly_sunday = next_sunday + timedelta(weeks=1)
+
+    # Format both dates
+    start_date = today.strftime("%d.%m.%Y")
+    end_date = biweekly_sunday.strftime("%d.%m.%Y")
+
+    return [start_date, end_date]
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def create_contract():
+    driver.find_element(By.ID, "gvs-create-contract-button").click()
+    sleep(2)
+    e1 = driver.find_element(By.XPATH, "//tr[th//*[text()='GL']]/td")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    e1.click()
+    
+    driver.find_element(By.ID, "gvs-contract-num-enrollments-input").send_keys(row["Count of ASIN"])
+    driver.find_element(By.ID, "gvs-contract-billing-fee-input").send_keys("0")
+    driver.find_element(By.XPATH, "//*[text()='Payment type']/parent::div/parent::div/div[2]").click()
+    sleep(1)
+    ko = driver.execute_script('''
+    return document.querySelector("#vsp-create-contract-page > div:nth-child(9) > div.kat-col-sm-2.kat-col-md-2 > kat-dropdown")
+        .shadowRoot
+        .querySelector("div > div:nth-child(3) > div > div > div > slot:nth-child(2) > kat-option[value='AMZ_DEDUCT_FROM_PAYMENT']");
+    ''')
+    ko.click()
+    sleep(1)
+    driver.find_element(By.ID, "gvs-contract-team-email-input").send_keys("eu-born-to-run-ext@amazon.com")
+    sd1 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-start-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
+    sd2 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-end-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
+    sd1.send_keys(setDate[0]) # today
+    sd2.send_keys(setDate[1]) # bi weekly sunday
+    driver.find_element(By.ID, "gvs-contract-comments-input").send_keys("EU BTR-VINE")
+    e1 = driver.find_element(By.ID, "gvs-create-contract-form-submit-btn")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    
+    
+    
+
+def fetch_active_vine_contracts(url):
+    driver.get(url)
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, '//kat-tab[@tab-id="contracts"]'))).click()
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[@id='gvs-contracts-table-wrapper']/div/h2")))
+    ct_no = driver.find_element(By.XPATH, "//div[@id='gvs-contracts-table-wrapper']/div/h2").text
+    match = re.search(r'Contracts\s*\((\d+)\)', ct_no)
+    number = "0"
+    if match:
+        number = match.group(1)
+        if number == "0":
+            create_contract()
+
+        else:
+            total_page = driver.execute_script('return document.querySelector("#gvs-contracts-table-wrapper > div.gvs-contract-pagination-wrapper > kat-pagination").shadowRoot.querySelector("nav > ul")')
+            total_page = total_page.find_elements(By.TAG_NAME, "li")
+
+            for a in total_page:
+                driver.execute_script("arguments[0].click();", a)
+                data1 = driver.find_elements(By.XPATH, "//tbody/tr")
+                for b in data1:
+                    data2 = b.find_elements(By.TAG_NAME, "td")
+                    if "Active" == data2[-1].text:
+                        df.at[index, "Contract number"] = data2[0].text
+                        df.at[index, "# of enrollments"] = data2[-2].text
+                        df.at[index, "Status"] = data2[-1].text
+                        break            
+                else:
+                    continue
+                break
+            else:
+                create_contract()
+        
+        
+        
+        
+        
+            
+if __name__ == "__main__":
+    setDate = today_nextSunday()
+    driver = open_chrome()
+    df = pd.read_excel("vine_final_output.xlsx")
+    for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Rows"):
+        fetch_active_vine_contracts(row["Smores link"])
+    df.to_excel("Vine_final_data.xlsx", index=False)
+    driver.quit()
+
+    
+    
