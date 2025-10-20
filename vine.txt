@@ -89,7 +89,7 @@ def create_contract():
     driver.execute_script("arguments[0].scrollIntoView(true);", e1)
     e1.click()
     sleep(2)
-    driver.find_element(By.XPATH, "gvs-create-contract-confirm-submit-btn").click()
+    driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click()
     sleep(2)
     WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-alert/span/a")))
     f_url = driver.find_element(By.XPATH, "//kat-alert/span/a").text
