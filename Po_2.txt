@@ -204,12 +204,13 @@ if not df_edd[df_edd_po].empty:
 
 
 if not df_dw_all.empty or not df_dw_end.empty or not df_edd[df_edd_asin_po].empty or not df_edd[df_edd_po].empty:
-    inr = input("""Kindly confirm to upload by selecting the TimeZone (1 to 5) ..
+    inr = input("""Kindly confirm to upload by selecting the TimeZone (1 to 6) ..
     1. Europe/London
     2. Europe/Berlin
     3. Africa/Cairo
     4. Europe/Moscow
     5. Asia/Dubai
+    6. America/Chicago
     """)
 
     tiz = {
@@ -217,7 +218,8 @@ if not df_dw_all.empty or not df_dw_end.empty or not df_edd[df_edd_asin_po].empt
     "2" : "Europe/Berlin",
     "3" : "Africa/Cairo",
     "4" : "Europe/Moscow",
-    "5" : "Asia/Dubai"
+    "5" : "Asia/Dubai",
+    "6" : "America/Chicago"
     }
 
     region = tiz.get(str(inr), None)
