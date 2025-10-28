@@ -3,7 +3,6 @@ import time
 import shutil
 import openpyxl
 import selenium
-import pyautogui
 import pandas as pd
 import webdriver_manager
 
