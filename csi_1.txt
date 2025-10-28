@@ -4,7 +4,6 @@ import shutil
 import openpyxl
 import selenium
 import pandas as pd
-import webdriver_manager
 
 from tqdm import tqdm
 from datetime import datetime, timedelta
@@ -15,8 +14,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-from webdriver_manager.chrome import ChromeDriverManager
 
 from selenium.webdriver import Keys
 
