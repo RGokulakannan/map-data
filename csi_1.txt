@@ -43,55 +43,32 @@ def open_chrome():
 
 driver = open_chrome()
 
-wait70 = WebDriverWait(driver, 70, poll_frequency=2)
+# program begins
+data = {
+    'Asin':[],
+    'MP':[],
+    'Summary':[]
+}
 
-# read input
-df = pd.read_excel('input.xlsx')
-
-output = openpyxl.Workbook()
-op_sheet = output.active
-op_sheet.append(['Asin','mpid', 'analysis', 'issue_type'])
+df = pd.read_excel("input.xlsx")
 
 for a,b in df.iterrows():
+    driver.get(f"https://csi.amazon.com/view?view=simple_product_data_view&item_id={b['Asin']}&marketplace_id={b['mp']}&customer_id=&merchant_id=&sku=&fn_sku=&gcid=&fulfillment_channel_code=&listing_type=purchasable&submission_id=&order_id=&external_id=&search_string=&realm=USAmazon&stage=prod&domain_id=&keyword=&submit=Show")
+    WebDriverWait(driver,120).until(EC.visibility_of_element_located((By.ID,'item_summary_div')))
     
-    print(b['Asin']," Remaining :", len(df)-a)
+    m = driver.find_element(By.XPATH, '//td[3]/div/table[2]/tbody/tr/td[1]/fieldset/table').text
+
+    data['Asin'].append(b['Asin'])
+    data['MP'].append(b['mp'])
+    data['Summary'].append(m)
     
-    try:
-        driver.get('about:blank')
-        driver.get(f"https://csi.amazon.com/view?view=blame_o&item_id={b['Asin']}&marketplace_id={b['mpid']}")
-        issue_type = ""
-        analysis = ""
-        analysis = wait70.until(EC.visibility_of_element_located((By.XPATH, '//td[3]/div/table[2]/tbody/tr/td[1]/fieldset/table'))).text
-        wait70.until(EC.visibility_of_element_located((By.ID, 'FilterTextBox')))
-        
-        filterBox = driver.find_element(By.ID, 'FilterTextBox')
-        filterBox.send_keys("validator_issues")
-        driver.execute_script("arguments[0].scrollIntoView(true);", filterBox)
-        time.sleep(1)
-        
-        tableData = driver.find_element(By.ID, 'productdata').find_elements(By.XPATH, '//tr[not(@style)]')
-        tableData = tableData[37:]
-        
-        for tr in tableData:
-            d = tr.text.splitlines()
-            if len(d)<5 : continue
-            if "website" == d[1]:
-                for e in d:
-                    if 'issue_type' in e:
-                        issue_type = e.split(':')[-1].strip()
-                        break
-            break     
-    except:
-        print("Failed")
+    if(a%20 == 19):
+        df_1 = pd.DataFrame(data)
+        df_1.to_excel("output.xlsx", index=False)
+            
+    print(b['Asin']," - ",m," Remaining : ",len(df['Asin'])-a)
     
-    finally:
-        op_sheet.append([b['Asin'], b['mpid'], analysis, issue_type])
-        
-    if a%10==9:
-        output.save("Output.xlsx")
-        
-        
+df_1 = pd.DataFrame(data)
+df_1.to_excel("output.xlsx", index=False)
+
 driver.quit()
-output.save("Output.xlsx")
-endTime = time.time()
-print('Time Taken :',round((endTime-startTime)/60))
