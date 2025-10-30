@@ -1,0 +1,69 @@
+import os
+import pandas as pd
+from bs4 import BeautifulSoup
+
+from tqdm import tqdm
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+user_name = os.getlogin()
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+driver = open_chrome()
+mp_map = {
+    "GB" : "7",
+    "DE" : "8",
+    "FR" : "9",
+    "IT" : "75",
+    "ES" : "85",
+    "SA" : "1378632"
+}
+
+
+df = pd.read_excel("input.xlsx")
+
+for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Asin"):
+    try:
+        driver.get("about:blank")
+        mp1 = mp_map.get(row["MP"])
+        if mp1:
+            driver.get(f"https://zaz-prod.src.scot.amazon.dev/procurability/?asin={row['ASIN']}&iog={mp1}")
+            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "evaluation-summary-table")))  # or driver.page_source
+            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "Prc2Summary")))  # or driver.page_source
+            # Parse using the lxml parser
+            soup = BeautifulSoup(driver.page_source, "lxml")
+            t1 = soup.find(id="evaluation-summary-table")
+            t2 = soup.find(id="Prc2Summary")
+            
+            td1 = t1.find_all("td")
+            td2 = t2.find_all("td")
+            
+            df.at[index, "Status"] = td2[1].text
+            df.at[index, "Last Changed (UTC)"] = td2[2].text
+            df.at[index, "Last Calculated (UTC)"] = td2[3].text
+            df.at[index, "Calculation Algorithm"] = td2[4].text
+            df.at[index, "Explanation"] = td1[0].text
+    except:
+        pass            
+        
+df.to_excel("output.xlsx", index=False)
+driver.quit()
+
