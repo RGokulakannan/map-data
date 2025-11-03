@@ -4,6 +4,9 @@ POC = lyunxi, mathnish
 the script will format the data from the dashboard.
 
 final combined version
+
+create contract
+
 """
 
 
@@ -139,8 +142,117 @@ def today_nextSunday():
 setDate = today_nextSunday()
 user_name = os.getlogin()
 
-driver = open_chrome()
 
+df_vc_group = pd.read_excel('map.xlsx', usecols='A:C')
+df_mp_link = pd.read_excel('map.xlsx', usecols='F:G')
+df_mp_no = pd.read_excel('map.xlsx', usecols='I:J')
+
+df_db = pd.read_csv("input.csv")
+df_db = pd.merge(df_db, df_mp_no, on="MP")
+df_db = pd.merge(df_db, df_mp_link, left_on='mp_name1', right_on='mp_name2')
+df_db = pd.merge(df_db, df_vc_group, on='Vendor Code')
+df_db.drop(columns=['mp_name2'], inplace=True)
+
+df_db['ASIN+MP'] = df_db['ASIN'] + df_db['mp_name1']
+df_db['Smores link'] = (
+    "https://smores-eu.corp.amazon.com/vine/vendor/"
+    + df_db['Vendor GROUP ID'].astype(str).str.replace(r'\.0$', '', regex=True)
+    + "/enrollments"
+    + df_db['MP links'].astype(str)
+)
+
+
+df_db.to_excel("Stage-1.xlsx", index=False)
+
+driver = open_chrome()
+driver.get("https://midway-auth.amazon.com")
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "page")))
+
+if df_db is not None:
+    
+    for index, row in tqdm(df_db.iterrows(), total=df_db.shape[0], desc="Rows"):
+        ct1 = 0
+        while ct1<10:
+            ct1 += 1
+            try:
+                retry = False
+                driver.get("data:text/plain, Welcome")
+                time.sleep(0.1)
+                driver.get(row["Smores link"])
+                WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-input[@placeholder='Enter ASIN']")))
+                
+                sbox = driver.execute_script(
+                'return document.querySelector("#search-box > div > kat-input-group > kat-input").shadowRoot.querySelector(\'input[part="input"][type="search"]\')'
+                )
+                
+                sbox.clear()
+                sbox.send_keys(row["ASIN"])
+                time.sleep(0.3)
+                sbox.send_keys(Keys.ENTER)
+                
+                ct = 0
+                while ct < 20:
+                    ct += 1
+                    time.sleep(1)
+                    if driver.find_elements(By.ID, "gvs-asin-eligibility-error-alert") : 
+                        print("Refreshing due to eligibility error...")
+                        retry = True
+                        break
+                    if driver.find_elements(By.ID, "gvs-invalid-asin-alert") : 
+                        break
+                    if driver.find_elements(By.ID, "gvs-asin-not-eligible-alert") : 
+                        df_db.at[index, 'Eligible'] = "N"
+                        break
+                    if driver.find_elements(By.ID, "gvs-asin-eligible-alert") : 
+                        df_db.at[index, 'Eligible'] = "Y"
+                        break
+                    if driver.find_elements(By.ID, "gvs-num-variations-display") : 
+                        vari = driver.find_element(By.ID, "gvs-num-variations-display").text.split(" ")[0]
+                        if vari == "0":
+                            df_db.at[index, 'Eligible'] = "Y"
+                        elif int(vari) > 0:
+                            df_db.at[index, 'Eligible'] = "N"
+                        break
+                    
+                # none of the conditions met within timeout
+                else:
+                    print(f"\nNo condition met for ASIN {row['ASIN']}")
+            
+                if not retry:
+                    break
+                
+            except Exception as e:
+                print(f"\nError processing ASIN {row['ASIN']}: {e}")
+
+        # After retries failures
+        else:
+            print(f"\nFailed to process ASIN {row['ASIN']} after multiple attempts.")
+            
+    # df_db['Eligible'].fillna("N", inplace = True)
+
+df_db.to_excel("Stage-2.xlsx", index=False)
+
+input("Eligibility check completed. Confirm for next step.")
+
+df_db = pd.read_excel("Stage-2.xlsx")
+df_db = df_db[df_db['Eligible'] == 'Y']
+
+# Create a pivot table
+pivot_table = pd.pivot_table(
+                            df_db, 
+                            values='ASIN',       # Column to aggregate
+                            index=["Vendor GROUP ID", "Vendor Code", 'Smores link' ],         # Rows
+                            # columns=['Alias'],   # Columns
+                            aggfunc='count',    # Aggregation function
+                            fill_value=0        # Replace NaN with 0
+                            )         
+
+pivot_table=pivot_table.reset_index()
+pivot_table.rename(columns={'ASIN': 'Count of ASIN'}, inplace=True)
+# df_final = pivot_table.merge(df_unique[['Smores link', 'ASIN']], on='Smores link', how='left')
+pivot_table.to_excel("Stage-3.xlsx", index=False)
+
+input("Pivot table created. Confirm for next step.")
 df = pd.read_excel("Stage-3.xlsx")
 
 # df = pivot_table.copy()
