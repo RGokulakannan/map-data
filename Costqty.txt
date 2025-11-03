@@ -99,7 +99,7 @@ for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
             
             try:
                 df.at[index, "ack_code"] = li[3].text                
-                if(li[3].text == 'AC'):
+                if li[3].text in ['AC', 'IA']:
                     
                     # handle the qty
                     if not pd.isna(row["quantity"]):
