@@ -1,0 +1,91 @@
+import os
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+
+
+user_name = os.getlogin()
+
+# Function for cookie management
+def cookie_management():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    service = Service(f"C:\\Users\\{user_name}\\driver\\chromedriver.exe")
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+    return driver
+
+driver = cookie_management()
+
+#Reading PO from excel
+df=pd.read_excel(f"input.xlsx", dtype=str)
+
+#Cycle through PO
+for a,b in df.iterrows():
+    
+    try:
+        print(a, end="-")
+    #Launching the PO
+        driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/po?poId={b['po']}&tabId=summary")
+        
+        #Waiting for update action to visible
+        WebDriverWait(driver,40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Update Actions']")))
+        time.sleep(0.5)
+        driver.find_element(By.XPATH,"//button[text()='Update Actions']").click()
+        time.sleep(0.5)
+        driver.find_element(By.XPATH,"//div[text()='Add Items']").click()
+        time.sleep(1)
+        driver.find_element(By.XPATH,"//input[@placeholder='asin...']").send_keys(b['asin'])
+        time.sleep(0.5)
+        driver.find_element(By.XPATH,"//button[text()='Go']").click()
+        time.sleep(2)
+        WebDriverWait(driver,10, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,"quantity")))
+        time.sleep(0.1)
+        driver.find_element(By.ID,"quantity").clear()
+        time.sleep(0.1)
+        driver.find_element(By.ID,"quantity").send_keys(b['qty'])
+        time.sleep(0.1)                
+        driver.find_element(By.XPATH,"//button[text()='Submit Item']").click()
+        time.sleep(1)
+        
+        ct = 0
+        while ct < 10:
+            
+            if len(driver.find_elements(By.XPATH,"//div[text()='Success']")):
+                df.at[a, 'status'] = "Added"
+                break
+            
+            if len(driver.find_elements(By.XPATH,"//kat-alert[contains(text(),'Hazmat violation(s)')]")):
+                df.at[a, 'status'] = "Hazmat Violation"
+                break
+            
+            time.sleep(1)
+            ct+= 1
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        df.at[a, 'status'] = "Failed"
+
+df.to_excel("output.xlsx", index=False)
+driver.quit()
+print("Completed")
