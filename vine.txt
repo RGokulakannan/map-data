@@ -103,7 +103,7 @@ def fetch_active_vine_contracts(url):
             df.at[index, "Contract Created"] = f_url
             
     except Exception as e:
-        print(f"Error processing URL {row['ASIN'], index}: {e}")
+        print(f"Error processing URL { index}: {e}")
         
 def today_nextSunday():
     # Get today's date
