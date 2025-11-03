@@ -103,7 +103,7 @@ def fetch_active_vine_contracts(url):
             df.at[index, "Contract Created"] = f_url
             
     except Exception as e:
-        print(f"Error processing URL { index}: {e}")
+        print(f"Error processing URL {row['ASIN'], index}: {e}")
         
 def today_nextSunday():
     # Get today's date
@@ -119,8 +119,8 @@ def today_nextSunday():
     biweekly_sunday = next_sunday + timedelta(weeks=1)
 
     # Format both dates
-    start_date = today.strftime("%m/%d/%Y")
-    end_date = biweekly_sunday.strftime("%m/%d/%Y")
+    start_date = today.strftime("%d/%m/%Y")
+    end_date = biweekly_sunday.strftime("%d/%m/%Y")
 
     return [start_date, end_date]
 
