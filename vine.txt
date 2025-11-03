@@ -1,14 +1,17 @@
+"""
+POC = lyunxi, mathnish
+
+the script will format the data from the dashboard.
+
+final combined version
+"""
+
+
 import os
 import time
-import selenium
 import pandas as pd
-import re
-
-from time import sleep
 from tqdm import tqdm
 from pathlib import Path
-from datetime import datetime, timedelta
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -16,28 +19,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver import Keys
+from time import sleep
+from datetime import datetime, timedelta
 
-user_name = os.getlogin()
 
-
-def today_nextSunday():
-    # Get today's date
-    today = datetime.today()
-
-    # Find the next Sunday
-    days_ahead = 6 - today.weekday()  # weekday(): Monday is 0, Sunday is 6
-    if days_ahead < 0:
-        days_ahead += 7
-    next_sunday = today + timedelta(days=days_ahead)
-
-    # Add 14 days (bi-weekly) from that Sunday
-    biweekly_sunday = next_sunday + timedelta(weeks=1)
-
-    # Format both dates
-    start_date = today.strftime("%d.%m.%Y")
-    end_date = biweekly_sunday.strftime("%d.%m.%Y")
-
-    return [start_date, end_date]
 
 def open_chrome():
     profile = 'Default'
@@ -61,90 +46,204 @@ def open_chrome():
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
-def create_contract():
-    driver.find_element(By.ID, "gvs-create-contract-button").click()
-    sleep(2)
-    e1 = driver.find_element(By.XPATH, "//tr[th//*[text()='GL']]/td")
-    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
-    e1.click()
-    
-    driver.find_element(By.ID, "gvs-contract-num-enrollments-input").send_keys(row["Count of ASIN"])
-    driver.find_element(By.ID, "gvs-contract-billing-fee-input").send_keys("0")
-    driver.find_element(By.XPATH, "//*[text()='Payment type']/parent::div/parent::div/div[2]").click()
-    sleep(1)
-    ko = driver.execute_script('''
-    return document.querySelector("#vsp-create-contract-page > div:nth-child(9) > div.kat-col-sm-2.kat-col-md-2 > kat-dropdown")
-        .shadowRoot
-        .querySelector("div > div:nth-child(3) > div > div > div > slot:nth-child(2) > kat-option[value='AMZ_DEDUCT_FROM_PAYMENT']");
-    ''')
-    ko.click()
-    sleep(1)
-    driver.find_element(By.ID, "gvs-contract-team-email-input").send_keys("eu-born-to-run-ext@amazon.com")
-    sd1 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-start-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
-    sd2 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-end-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
-    sd1.send_keys(setDate[0]) # today
-    sd2.send_keys(setDate[1]) # bi weekly sunday
-    driver.find_element(By.ID, "gvs-contract-comments-input").send_keys("EU BTR-VINE")
-    e1 = driver.find_element(By.ID, "gvs-create-contract-form-submit-btn")
-    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
-    e1.click()
-    sleep(2)
-    driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click()
-    sleep(2)
-    WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-alert/span/a")))
-    f_url = driver.find_element(By.XPATH, "//kat-alert/span/a").text
-    
-    df.at[index, "Contract Created"] = f_url
-    
-    
-    
-
 def fetch_active_vine_contracts(url):
-    driver.get(url)
-    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, '//kat-tab[@tab-id="contracts"]'))).click()
-    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[@id='gvs-contracts-table-wrapper']/div/h2")))
-    ct_no = driver.find_element(By.XPATH, "//div[@id='gvs-contracts-table-wrapper']/div/h2").text
-    match = re.search(r'Contracts\s*\((\d+)\)', ct_no)
-    number = "0"
-    if match:
-        number = match.group(1)
-        if number == "0":
-            create_contract()
+    try:
+        driver.get(url)
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, '//kat-tab[@tab-id="contracts"]'))).click()
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.TAG_NAME, 'tbody')))
 
-        else:
-            total_page = driver.execute_script('return document.querySelector("#gvs-contracts-table-wrapper > div.gvs-contract-pagination-wrapper > kat-pagination").shadowRoot.querySelector("nav > ul")')
-            total_page = total_page.find_elements(By.TAG_NAME, "li")
+        total_page = driver.execute_script('return document.querySelector("#gvs-contracts-table-wrapper > div.gvs-contract-pagination-wrapper > kat-pagination").shadowRoot.querySelector("nav > ul")')
+        total_page = total_page.find_elements(By.TAG_NAME, "li")
 
-            for a in total_page:
-                driver.execute_script("arguments[0].click();", a)
-                data1 = driver.find_elements(By.XPATH, "//tbody/tr")
-                for b in data1:
-                    data2 = b.find_elements(By.TAG_NAME, "td")
-                    if "Active" == data2[-1].text:
-                        df.at[index, "Contract number"] = data2[0].text
-                        df.at[index, "# of enrollments"] = data2[-2].text
-                        df.at[index, "Status"] = data2[-1].text
-                        break            
-                else:
-                    continue
-                break
+        for a in total_page:
+            driver.execute_script("arguments[0].click();", a)
+            data1 = driver.find_elements(By.XPATH, "//tbody/tr")
+            for b in data1:
+                data2 = b.find_elements(By.TAG_NAME, "td")
+                if "Active" == data2[-1].text:
+                    df.at[index, "Contract number"] = data2[0].text
+                    df.at[index, "# of enrollments"] = data2[-2].text
+                    df.at[index, "Status"] = data2[-1].text
+                    break            
             else:
-                create_contract()
-        
-        
-        
-        
-        
+                continue
+            break
+        else:
+            print("Creating a new contract", end=" - ")
+            driver.find_element(By.ID, "gvs-create-contract-button").click()
+            sleep(2)
+            driver.execute_script("scroll(0,220);")
+            driver.find_element(By.XPATH, "//tr[th//*[text()='GL']]/td").click()
+            driver.execute_script("scroll(0, 1000);")
+            driver.find_element(By.ID, "gvs-contract-num-enrollments-input").send_keys("4")
+            driver.find_element(By.ID, "gvs-contract-billing-fee-input").send_keys("0")
+            driver.find_element(By.XPATH, "//*[text()='Payment type']/parent::div/parent::div/div[2]").click()
+            sleep(1)
+            ko = driver.execute_script('''
+            return document.querySelector("#vsp-create-contract-page > div:nth-child(9) > div.kat-col-sm-2.kat-col-md-2 > kat-dropdown")
+                .shadowRoot
+                .querySelector("div > div:nth-child(3) > div > div > div > slot:nth-child(2) > kat-option[value='AMZ_DEDUCT_FROM_PAYMENT']");
+            ''')
+            ko.click()
+            sleep(1)
+            driver.find_element(By.ID, "gvs-contract-team-email-input").send_keys("eu-born-to-run-ext@amazon.com")
+            sd1 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-start-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
+            sd2 = driver.execute_script('return document.querySelector("#vsp-create-contract-page > div:nth-child(11) > div.kat-col-sm-6 > div > kat-date-picker.gvs-end-date-picker").shadowRoot.querySelector("div.container > div.input__container > kat-input").shadowRoot.querySelector("input")')
+            sd1.send_keys(setDate[0]) # today
+            sd2.send_keys(setDate[1]) # bi weekly sunday
+            driver.find_element(By.ID, "gvs-contract-comments-input").send_keys("EU BTR-VINE")
+            e1 = driver.find_element(By.ID, "gvs-create-contract-form-submit-btn")
+            driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+            e1.click()
+            sleep(1)
+            driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click()
+            sleep(1)
+            WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-alert/span/a")))
+            f_url = driver.find_element(By.XPATH, "//kat-alert/span/a").text
+            df.at[index, "Contract Created"] = f_url
             
-if __name__ == "__main__":
-    setDate = today_nextSunday()
-    driver = open_chrome()
-    df = pd.read_excel("vine_final_output.xlsx")
-    for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Rows"):
-        fetch_active_vine_contracts(row["Smores link"])
-    df.to_excel("Vine_final_data.xlsx", index=False)
-    driver.quit()
+    except Exception as e:
+        print(f"Error processing URL {row['ASIN'], index}: {e}")
+        
+def today_nextSunday():
+    # Get today's date
+    today = datetime.today()
 
-    
-    
+    # Find the next Sunday
+    days_ahead = 6 - today.weekday()  # weekday(): Monday is 0, Sunday is 6
+    if days_ahead < 0:
+        days_ahead += 7
+    next_sunday = today + timedelta(days=days_ahead)
 
+    # Add 14 days (bi-weekly) from that Sunday
+    biweekly_sunday = next_sunday + timedelta(weeks=1)
+
+    # Format both dates
+    start_date = today.strftime("%m/%d/%Y")
+    end_date = biweekly_sunday.strftime("%m/%d/%Y")
+
+    return [start_date, end_date]
+
+setDate = today_nextSunday()
+user_name = os.getlogin()
+
+
+df_vc_group = pd.read_excel('map.xlsx', usecols='A:C')
+df_mp_link = pd.read_excel('map.xlsx', usecols='F:G')
+df_mp_no = pd.read_excel('map.xlsx', usecols='I:J')
+
+df_db = pd.read_csv("input.csv")
+df_db = pd.merge(df_db, df_mp_no, on="MP")
+df_db = pd.merge(df_db, df_mp_link, left_on='mp_name1', right_on='mp_name2')
+df_db = pd.merge(df_db, df_vc_group, on='Vendor Code')
+df_db.drop(columns=['mp_name2'], inplace=True)
+
+df_db['ASIN+MP'] = df_db['ASIN'] + df_db['mp_name1']
+df_db['Smores link'] = (
+    "https://smores-eu.corp.amazon.com/vine/vendor/"
+    + df_db['Vendor GROUP ID'].astype(str).str.replace(r'\.0$', '', regex=True)
+    + "/enrollments"
+    + df_db['MP links'].astype(str)
+)
+
+
+df_db.to_excel("Stage-1.xlsx", index=False)
+
+driver = open_chrome()
+driver.get("https://midway-auth.amazon.com")
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "page")))
+
+if df_db is not None:
+    
+    for index, row in tqdm(df_db.iterrows(), total=df_db.shape[0], desc="Rows"):
+        ct1 = 0
+        while ct1<10:
+            ct1 += 1
+            try:
+                retry = False
+                driver.get("data:text/plain, Welcome")
+                time.sleep(0.1)
+                driver.get(row["Smores link"])
+                WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-input[@placeholder='Enter ASIN']")))
+                
+                sbox = driver.execute_script(
+                'return document.querySelector("#search-box > div > kat-input-group > kat-input").shadowRoot.querySelector(\'input[part="input"][type="search"]\')'
+                )
+                
+                sbox.clear()
+                sbox.send_keys(row["ASIN"])
+                time.sleep(0.3)
+                sbox.send_keys(Keys.ENTER)
+                
+                ct = 0
+                while ct < 20:
+                    ct += 1
+                    time.sleep(1)
+                    if driver.find_elements(By.ID, "gvs-asin-eligibility-error-alert") : 
+                        print("Refreshing due to eligibility error...")
+                        retry = True
+                        break
+                    if driver.find_elements(By.ID, "gvs-invalid-asin-alert") : 
+                        break
+                    if driver.find_elements(By.ID, "gvs-asin-not-eligible-alert") : 
+                        df_db.at[index, 'Eligible'] = "N"
+                        break
+                    if driver.find_elements(By.ID, "gvs-asin-eligible-alert") : 
+                        df_db.at[index, 'Eligible'] = "Y"
+                        break
+                    if driver.find_elements(By.ID, "gvs-num-variations-display") : 
+                        vari = driver.find_element(By.ID, "gvs-num-variations-display").text.split(" ")[0]
+                        if vari == "0":
+                            df_db.at[index, 'Eligible'] = "Y"
+                        elif int(vari) > 0:
+                            df_db.at[index, 'Eligible'] = "N"
+                        break
+                    
+                # none of the conditions met within timeout
+                else:
+                    print(f"\nNo condition met for ASIN {row['ASIN']}")
+            
+                if not retry:
+                    break
+                
+            except Exception as e:
+                print(f"\nError processing ASIN {row['ASIN']}: {e}")
+
+        # After retries failures
+        else:
+            print(f"\nFailed to process ASIN {row['ASIN']} after multiple attempts.")
+            
+    # df_db['Eligible'].fillna("N", inplace = True)
+
+df_db.to_excel("Stage-2.xlsx", index=False)
+
+input("Eligibility check completed. Confirm for next step.")
+
+df_db = pd.read_excel("Stage-2.xlsx")
+df_db = df_db[df_db['Eligible'] == 'Y']
+
+# Create a pivot table
+pivot_table = pd.pivot_table(
+                            df_db, 
+                            values='ASIN',       # Column to aggregate
+                            index=["Vendor Group ID", "Vendor Code", 'Smores link' ],         # Rows
+                            # columns=['Alias'],   # Columns
+                            aggfunc='count',    # Aggregation function
+                            fill_value=0        # Replace NaN with 0
+                            )         
+
+pivot_table=pivot_table.reset_index()
+pivot_table.rename(columns={'ASIN': 'Count of ASIN'}, inplace=True)
+# df_final = pivot_table.merge(df_unique[['Smores link', 'ASIN']], on='Smores link', how='left')
+pivot_table.to_excel("Stage-3.xlsx", index=False)
+
+input("Pivot table created. Confirm for next step.")
+df = pd.read_excel("Stage-3.xlsx")
+
+# df = pivot_table.copy()
+for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Rows"):
+    fetch_active_vine_contracts(row["Smores link"])
+
+df.to_excel("Stage-4.xlsx", index=False)
+
+driver.quit()
