@@ -86,3 +86,37 @@ for col in date_columns_1:
 df_filtered["FcstGroupId"] = 1
 
 df_filtered.to_excel("output_fov.xlsx", index=False)
+
+
+df = pd.read_excel("input_fov_delete.xlsx", dtype=str)
+df_column = df.columns.str.strip()
+
+if "ASIN" not in df_column:
+    print("ASIN column is missing")
+    exit()
+if "StartDate" not in df_column:
+    print("StartDate column is missing")
+    exit()
+if "EndDate" not in df_column:
+    print("EndDate column is missing")
+    exit()
+
+df = df.dropna(subset=['ASIN'])
+
+# Step 1: Convert with coercion
+df['StartDate'] = pd.to_datetime(df['StartDate'], errors='coerce')
+df['EndDate'] = pd.to_datetime(df['EndDate'], errors='coerce')
+
+# Step 2: Format to mm/dd/yyyy (NaT stays as NaT unless you choose to fill it)
+df['StartDate'] = df['StartDate'].dt.strftime('%m/%d/%Y')
+df['EndDate'] = df['EndDate'].dt.strftime('%m/%d/%Y')
+
+if df[['StartDate', 'EndDate']].isna().any().any():
+    print("There are invalid dates in StartDate or EndDate columns.")
+    exit()
+
+df_fin = df[["ASIN", "StartDate", "EndDate"]].copy()
+df_fin["Action"] = "delete"
+df_fin["FcstGroupId"] = "1"
+
+df_fin.to_excel("output_fov_delete.xlsx", index=False)
