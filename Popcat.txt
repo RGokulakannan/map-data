@@ -1,0 +1,354 @@
+import os
+import time
+from time import sleep
+import pandas as pd
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import pandas as pd
+from openpyxl.styles import Alignment
+import openpyxl
+from selenium import webdriver
+from pathlib import Path
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import Select
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": str(downloadDir),
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def clear_download_folder():
+    for f in Path(downloadDir).iterdir():
+        if f.is_file():
+            f.unlink()
+            
+user_name = os.getlogin()
+downloadDir = Path("download").resolve()
+downloadDir.mkdir(exist_ok=True)
+clear_download_folder()
+Path("output.xlsx").unlink(missing_ok=True)
+
+def cost_lookup():
+    try:
+        # waiting for the table
+        ct = 30
+        while ct>0:
+            time.sleep(1)
+            ct -= 1
+            if len(driver.find_elements(By.XPATH, "//div[@data-analytics-alert='error']")):
+                return ["",""]
+            tab = driver.find_element(By.CLASS_NAME,'product-cost-table-wrapper').find_elements(By.TAG_NAME, 'td')
+            if len(tab)>2:
+                return [tab[3].text, tab[1].text ]
+        else:
+            return ["",""]
+    except:
+        return ["",""]
+
+def crap_check():
+    try:
+        WebDriverWait(driver,60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div[2]/div/div[1]/div[1]/div')))
+        return driver.find_element(By.XPATH,'/html/body/div/div/div[2]/div/div[1]/div[1]/div').find_element(By.TAG_NAME,'span').text
+    except:
+        return ""
+
+driver = open_chrome()
+wait60 = WebDriverWait(driver, 60, poll_frequency=1)
+
+# program begins
+driver.get("https://prod.cost.vendors.a2z.com")
+WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, 'ucp-header')))
+
+start_time = time.time()
+
+# Reading Asin
+df = pd.read_excel('input.xlsx')
+
+try:
+    # get Asin List
+    asin_list = ', '.join(df['ASIN'].dropna().unique().astype(str))
+    # get cont List
+    cont_list = ', '.join(df['cont'].dropna().unique().astype(str))
+
+    # selection central -1
+    driver.get("https://selection.amazon.com/")
+    wait60.until(     EC.presence_of_element_located((By.XPATH, "//title[text()='Selection Central']")) )        
+
+    driver.get("https://selection.amazon.com/contributions-search-results/9e8b8404880aaccb35b760d9da9fd84b")
+    wait60.until(
+        lambda d: len(d.find_elements(By.XPATH, "//button[span[text()='Clear all']]")) > 1
+    )
+    WebDriverWait(driver, 60, poll_frequency=1).until(
+        EC.visibility_of_element_located((By.XPATH, "//button[span[text()='Clear all'] and not (@disabled)]"))
+    )
+
+    time.sleep(2)
+    clear_bt = driver.find_elements(By.XPATH, "//button[span[text()='Clear all']]")
+
+    driver.execute_script("arguments[0].scrollIntoView(true);", clear_bt[0])
+    sleep(1)
+    clear_bt[0].click()
+    sleep(1)
+    driver.execute_script("arguments[0].scrollIntoView(true);", clear_bt[0])
+    sleep(1)
+    clear_bt[1].click()
+    sleep(1)
+
+    e1=driver.find_element(By.XPATH, "//div[div/label/span[text()='ASIN']]//textarea")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    driver.execute_script("""
+        arguments[0].value = arguments[1];
+        arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+        arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+    """, e1, asin_list)
+    e1.send_keys(" ")  # Move focus away to trigger any change events
+    e1.clear()
+
+    e1=driver.find_element(By.XPATH, "//div[div/label/span[text()='Contributor']]//textarea")
+    driver.execute_script("arguments[0].scrollIntoView(true);", e1)
+    driver.execute_script("""
+        arguments[0].value = arguments[1];
+        arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+        arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+    """, e1, cont_list)
+    e1.send_keys(" ")  # Move focus away to trigger any change events
+    time.sleep(2)
+
+    driver.find_element(By.XPATH, "//span[text()='Search']").click()
+    time.sleep(5)
+    wait60.until(
+        EC.visibility_of_element_located((By.XPATH, "//div[text()='Editing status']"))
+    )
+    time.sleep(2)
+    driver.find_element(By.XPATH, "//span[text()='Exports']").click()
+
+    wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Search results']"))).click()
+    time.sleep(2)
+
+    WebDriverWait(driver, 60, poll_frequency=1).until(
+        EC.visibility_of_element_located((By.XPATH, "//span[text()='View export status']")) 
+    )
+    time.sleep(2)
+    driver.find_element(By.XPATH, "//span[text()='View export status']").click()
+    time.sleep(2)
+
+    t1=l1 = 0
+    while t1<60 and l1 == 0:
+        time.sleep(2)
+        t1 += 1
+        l1 = len(driver.find_elements(By.XPATH, "//span[text()='Completed']"))
+
+    f1 = set([f for f in downloadDir.iterdir() if f.is_file()])
+
+    driver.find_element(By.XPATH, "//span[text()='Result']").click()
+    time.sleep(10)
+
+    ct=0
+    while ct<30:
+        ct+=1
+        sleep(2)
+        f2 = set([f for f in downloadDir.iterdir() if f.is_file()]) - f1
+        
+        if f2:
+            f2 = f2.pop()
+            print(str(f2))
+            if str(f2).endswith(".xlsx"):
+                break
+    else:
+        print("Failed to read Selection Central Export in download Folder")
+
+    if str(f2).endswith(".xlsx"):
+        df_sc = pd.read_excel(f2)
+        df_pd = df_sc[df_sc["matched_asin#1.value"].notna()][[
+        "contributor_name", 
+        "matched_asin#1.value",
+        "item_dimensions.height.unit",
+        "item_dimensions.height.value",
+        "item_dimensions.length.unit",
+        "item_dimensions.length.value",
+        "item_dimensions.width.unit",
+        "item_dimensions.width.value",
+        "item_package_dimensions.height.unit",
+        "item_package_dimensions.height.value",
+        "item_package_dimensions.length.unit",
+        "item_package_dimensions.length.value",
+        "item_package_dimensions.width.unit",
+        "item_package_dimensions.width.value"
+        ]]
+
+        # Example columns: 'col1', 'col2', 'col3'
+        df_pd['is_dimesion'] = df_pd[[
+            "item_dimensions.height.unit",
+            "item_dimensions.height.value",
+            "item_dimensions.length.unit",
+            "item_dimensions.length.value",
+            "item_dimensions.width.unit",
+            "item_dimensions.width.value",
+            "item_package_dimensions.height.unit",
+            "item_package_dimensions.height.value",
+            "item_package_dimensions.length.unit",
+            "item_package_dimensions.length.value",
+            "item_package_dimensions.width.unit",
+            "item_package_dimensions.width.value"]].notna().all(axis=1).map({True: 'Yes', False: 'No'})
+        
+        df_pd = df_pd.rename(columns={"matched_asin#1.value": "ASIN", 
+                                    "contributor_name": "cont"})
+        df = df.merge(df_pd[['ASIN', 'cont', 'is_dimesion']], on=['ASIN', 'cont'], how='left')
+        
+    else:
+        print("Failed to read Selection Central Export in download Folder")
+
+except Exception as e:
+    print("Error in Selection Central Export: ", str(e))
+    
+df['MP'] = df['MP'].str.split('-').str[0]
+
+mp_id = {
+    'GB': '3',
+    'DE': '4',
+    'FR': '5',
+    'IT': '35691',
+    'ES': '44551',
+    'SE': '704403121',
+    'TR': '338851',
+    'AE': '338801',
+    'NL': '328451',
+    'SA': '338811',
+    'EG': '623225021',
+    'IN': '44571',
+    'BE': '679831071',
+    'PL': '712115121'
+}
+
+mer_id = {
+    'GB': '9',
+    'DE': '10',
+    'FR': '11',
+    'IT': '755690533',
+    'ES': '695831032',
+    'SE': '54402660112',
+    'TR': '14311485635',
+    'AE': '18034145125',
+    'NL': '7067781925',
+    'SA': '18063832625',
+    'EG': '176335188512',
+    'IN': '1104436463',
+    'BE': '233182206912',
+    'PL': '54402072512'
+}
+
+for a, b in df.iterrows():        
+    
+    driver.get("about:blank")
+    driver.get(f'https://prod.cost.vendors.a2z.com/costLookup?marketplaceId={mp_id.get(b["MP"],"")}&asin={b['ASIN']}&vendorCode={b['Vendor Code']}&quantity=1&showHistory=true')
+    cost_price = cost_lookup()
+    
+    driver.get("about:blank")
+    driver.get(f'https://selectioneconomics-web-dub.dub.proxy.amazon.com/asinStatus?asin={b['ASIN']}&merchantId={mer_id.get(b["MP"],"")}')
+    crap = crap_check()
+    
+    df.at[a, 'Crap Status'] = crap
+    df.at[a, 'cost_price'] = 'Available' if cost_price[0] != "" else 'Not Available'
+
+
+
+pandash_url = []
+for mp1, group in df.groupby("MP"):
+    
+    driver.get("https://pandash.amazon.com/")
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "asinsFilter")))
+
+    tbox = driver.find_element(By.ID, "asinsFilter")
+    tbox.clear() 
+    driver.execute_script("arguments[0].value = arguments[1];", tbox, "\n".join(group["ASIN"].tolist()))
+    sleep(1)
+
+    driver.find_element(By.ID, mp1.lower()).click()
+    sleep(1)
+    select = Select(driver.find_element(By.ID, "languageFilter"))
+    select.select_by_value("EN")
+    sleep(0.5)
+    driver.find_element(By.ID, "cbxDirectResultsExport").click()
+    sleep(1)
+    
+    driver.find_element(By.ID, 'btOk').click()
+    sleep(2)
+    pandash_url.append(driver.find_element(By.ID, "resultMessage").find_element(By.TAG_NAME, "a").text)
+
+time.sleep(60)
+
+df_li = []
+for url1 in pandash_url:
+    ct = 0
+    while ct < 30:
+        sleep(2)
+        f1 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
+        driver.get(url1)
+        sleep(5)
+        f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
+        new_files = f2 - f1
+        if new_files:
+            nf = new_files.pop()
+            if nf.suffix == ".xlsx":
+                df_li.append(pd.read_excel(nf, usecols=["MESSAGE", "ASIN", "MARKETPLACE"]))
+                break
+        ct += 1
+    else:
+        print("Download timed out.")
+        
+df_final = pd.concat(df_li, ignore_index=True)
+df_final.rename(columns={"MARKETPLACE": "MP"}, inplace=True)
+df_final['is_Hazmat'] = 'Non-Hazmat'
+df_final.loc[df_final['MESSAGE'].str.startswith('The ASIN is a dangerous good (Hazmat)', na=False), 'is_Hazmat'] = 'Hazmat'
+df_final.drop(columns=["MESSAGE"], inplace=True)
+df_final = df.merge(df_final, on=["ASIN", "MP"], how="left")
+
+styled_df = df_final.style.map(lambda x: 'background-color: tomato' if x != 'Not Crap' else None,subset=["Crap Status"])\
+                        .map(lambda x: 'background-color: tomato' if x != 'Available' else None,subset=["cost_price"])\
+                        .map(lambda x: 'background-color: tomato' if x == 'Hazmat' else None,subset=["is_Hazmat"])\
+                        .map(lambda x: 'background-color: tomato' if x == 'No' else None,subset=["is_dimesion"])
+
+styled_df.to_excel(f'output.xlsx', engine='openpyxl', index=False)
+
+loc = (f"output.xlsx")
+
+workbook = openpyxl.load_workbook(loc)
+sheet = workbook.active
+# Iterate through each column
+for col in "ABCDEF":
+    sheet.column_dimensions[col].width = 12
+    # Iterate through all cells in the column
+    for cell in sheet[col]:
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+workbook.save(f'output.xlsx')
+
+driver.quit()
+end_time = time.time()
+duration = end_time - start_time
+print("Time duration of program : ", round(duration,2), "seconds")
+time.sleep(20)
