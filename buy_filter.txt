@@ -1,0 +1,51 @@
+import re
+import json
+import requests
+import pandas as pd
+import browser_cookie3
+from tqdm import tqdm
+
+cookie = browser_cookie3.firefox()
+
+df = pd.read_excel("input.xlsx")
+
+for name, group in tqdm(df.groupby("sim_id"), total=df["sim_id"].nunique()):
+    # Create an empty DataFrame with specific columns
+    df_out = pd.DataFrame(columns=["Asin", "qty", "reason", "bundle_id"])
+    for index, row in group.iterrows():
+        
+        response = requests.get(f'https://na.sourcing-execution-tools.scot.amazon.dev/workflow/req/?planId={row['bundle_id']}', cookies=cookie)
+
+        if response.status_code == 200:
+            text = response.text
+            # Use regex to extract all JSON arrays after "data:"
+            matches = re.findall(r"data:\s*(\[\{.*?\}\])", text, re.DOTALL)
+
+            all_data = []
+
+            for data_str in matches:
+                try:
+                    data_list = json.loads(data_str)  # Convert string to Python list
+                    all_data.append(data_list)
+                except json.JSONDecodeError:
+                    print("Failed to parse JSON:", data_str)
+
+            for a in all_data[2]:
+                if a.get("filteredFlag") == True:
+                    df_out.loc[len(df_out)] = [
+                                            a.get("pk").get("asin"), 
+                                            a.get("overrideQty"), 
+                                            a.get("workflowOverrideReason"),
+                                            row['bundle_id']
+                                            ]
+                    
+                    # print(a.get("pk").get("asin")," --- " ,a.get("pk").get("fc"), " -- ", ct, " - ", a.get("workflowOverrideReason")\
+                    #     , " - ", a.get("purchaseOrderId"), " - ", a.get("overrideQty"), " - ", a.get("filteredFlag"))
+                
+
+        else:
+            print("Failed to retrieve the webpage. Status code:", response.status_code)
+            
+    df_out.to_excel(f"filtered_{name}.xlsx", index=False)
+
+
