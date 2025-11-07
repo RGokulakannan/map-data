@@ -276,60 +276,8 @@ for a, b in df.iterrows():
 
 
 
-pandash_url = []
-for mp1, group in df.groupby("MP"):
-    
-    driver.get("https://pandash.amazon.com/")
-    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "asinsFilter")))
-
-    tbox = driver.find_element(By.ID, "asinsFilter")
-    tbox.clear() 
-    driver.execute_script("arguments[0].value = arguments[1];", tbox, "\n".join(group["ASIN"].tolist()))
-    sleep(1)
-
-    driver.find_element(By.ID, mp1.lower()).click()
-    sleep(1)
-    select = Select(driver.find_element(By.ID, "languageFilter"))
-    select.select_by_value("EN")
-    sleep(0.5)
-    driver.find_element(By.ID, "cbxDirectResultsExport").click()
-    sleep(1)
-    
-    driver.find_element(By.ID, 'btOk').click()
-    sleep(2)
-    pandash_url.append(driver.find_element(By.ID, "resultMessage").find_element(By.TAG_NAME, "a").text)
-
-time.sleep(60)
-
-df_li = []
-for url1 in pandash_url:
-    ct = 0
-    while ct < 30:
-        sleep(2)
-        f1 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
-        driver.get(url1)
-        sleep(5)
-        f2 = set([f for f in Path(downloadDir).iterdir() if f.is_file()])
-        new_files = f2 - f1
-        if new_files:
-            nf = new_files.pop()
-            if nf.suffix == ".xlsx":
-                df_li.append(pd.read_excel(nf, usecols=["MESSAGE", "ASIN", "MARKETPLACE"]))
-                break
-        ct += 1
-    else:
-        print("Download timed out.")
-        
-df_final = pd.concat(df_li, ignore_index=True)
-df_final.rename(columns={"MARKETPLACE": "MP"}, inplace=True)
-df_final['is_Hazmat'] = 'Non-Hazmat'
-df_final.loc[df_final['MESSAGE'].str.startswith('The ASIN is a dangerous good (Hazmat)', na=False), 'is_Hazmat'] = 'Hazmat'
-df_final.drop(columns=["MESSAGE"], inplace=True)
-df_final = df.merge(df_final, on=["ASIN", "MP"], how="left")
-
-styled_df = df_final.style.map(lambda x: 'background-color: tomato' if x != 'Not Crap' else None,subset=["Crap Status"])\
+styled_df = df.style.map(lambda x: 'background-color: tomato' if x != 'Not Crap' else None,subset=["Crap Status"])\
                         .map(lambda x: 'background-color: tomato' if x != 'Available' else None,subset=["cost_price"])\
-                        .map(lambda x: 'background-color: tomato' if x == 'Hazmat' else None,subset=["is_Hazmat"])\
                         .map(lambda x: 'background-color: tomato' if x == 'No' else None,subset=["is_dimesion"])
 
 styled_df.to_excel(f'output.xlsx', engine='openpyxl', index=False)
