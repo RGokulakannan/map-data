@@ -47,7 +47,7 @@ df = pd.read_excel(f"PO_INPUT.xlsx")
 
 # looping over given PO
 for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
-    try:    
+    
         # to open the url in browser
         driver.get('about:blank')      
         driver.get(f'https://procurementportal-eu.corp.amazon.com/bp/po?poId={row['po']}&tabId=summary')
@@ -86,8 +86,7 @@ for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
             continue
             
             
-    except Exception as e:
-        pass    
+   
 
 driver.quit()        
 
