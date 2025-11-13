@@ -33,9 +33,10 @@ def open_chrome():
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
-driver = open_chrome()
+
 
 inData = input("Enter the input file name with extension (e.g., PO_INPUT.xlsx): ")
+driver = open_chrome()
 df = pd.read_excel(inData)
 
 # looping over given PO
