@@ -82,7 +82,7 @@ for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
             
         else:
             print(f"PO {row['po']} is not in editable state, skipping...")
-            continue
+            df.at[index, 'Status'] = 'Cant edit'
             
     except Exception as e:
         print(f"Error processing PO {row['po']}: {e}")
