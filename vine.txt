@@ -14,7 +14,6 @@ import os
 import time
 import pandas as pd
 from tqdm import tqdm
-from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -78,7 +77,7 @@ def create_contract():
         driver.execute_script("arguments[0].scrollIntoView(true);", e1)
         e1.click()
         sleep(1)
-        # driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click() test
+        driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click()
         sleep(1)
         WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-alert/span/a")))
         f_url = driver.find_element(By.XPATH, "//kat-alert/span/a").text
@@ -179,7 +178,7 @@ if df_db is not None:
     
     for index, row in tqdm(df_db.iterrows(), total=df_db.shape[0], desc="Rows"):
         ct1 = 0
-        while ct1<10:
+        while ct1<3:
             ct1 += 1
             try:
                 retry = False
@@ -232,11 +231,11 @@ if df_db is not None:
         else:
             print(f"\nFailed to process ASIN {row['ASIN']} after multiple attempts.")
             
-
 df_db.to_excel("Stage-2.xlsx", index=False)
 input("Eligibility check completed. Confirm for next step.")
 
 df_db = pd.read_excel("Stage-2.xlsx")
+df_db_xl = df_db.copy()
 df_db = df_db[df_db['Eligible'] == 'Y']
 
 # Create a pivot table
@@ -263,7 +262,7 @@ df.to_excel("Stage-4.xlsx", index=False)
 
 # Write to one Excel file with two sheets
 with pd.ExcelWriter('summary.xlsx') as writer:
-    pivot_table.to_excel(writer, sheet_name='Raw data', index=False)
+    df_db_xl.to_excel(writer, sheet_name='Raw data', index=False)
     df.to_excel(writer, sheet_name='Pivot data', index=False)
 
 driver.quit()
