@@ -33,6 +33,7 @@ def open_chrome():
     options = Options()
     options.add_argument(f'user-data-dir={profile_path}')
     options.add_argument(f'--profile-directory={profile}')
+    options.add_argument("--log-level=3")  # Correct spelling
     options.add_argument('--start-maximized')
     options.add_argument('--disable-dev-shm-usage')
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -77,7 +78,7 @@ def create_contract():
         driver.execute_script("arguments[0].scrollIntoView(true);", e1)
         e1.click()
         sleep(1)
-        driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click()
+        # driver.find_element(By.ID, "gvs-create-contract-confirm-submit-btn").click() test
         sleep(1)
         WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//kat-alert/span/a")))
         f_url = driver.find_element(By.XPATH, "//kat-alert/span/a").text
@@ -147,23 +148,29 @@ df_vc_group = pd.read_excel('map.xlsx', usecols='A:C')
 df_mp_link = pd.read_excel('map.xlsx', usecols='F:G')
 df_mp_no = pd.read_excel('map.xlsx', usecols='I:J')
 
-df_db = pd.read_csv("input.csv")
+df_db = pd.read_csv("input.csv", index_col=False)
 df_db = pd.merge(df_db, df_mp_no, on="MP")
-df_db = pd.merge(df_db, df_mp_link, left_on='mp_name1', right_on='mp_name2')
+df_db.rename(columns={"Country_code.1": "Country_code"}, inplace=True)
+df_db = pd.merge(df_db, df_mp_link, on="Country_code")
 df_db = pd.merge(df_db, df_vc_group, on='Vendor Code')
-df_db.drop(columns=['mp_name2'], inplace=True)
-
-df_db['ASIN+MP'] = df_db['ASIN'] + df_db['mp_name1']
+df_db['ASIN+MP'] = df_db['ASIN'] + df_db['Country_code']
 df_db['Smores link'] = (
     "https://smores-eu.corp.amazon.com/vine/vendor/"
-    + df_db['Vendor GROUP ID'].astype(str).str.replace(r'\.0$', '', regex=True)
+    + df_db['Vendor Group ID'].astype(str).str.replace(r'\.0$', '', regex=True)
     + "/enrollments"
-    + df_db['MP links'].astype(str)
+    + df_db['Merchant ID'].astype(str)
 )
 
+columns_list = [    "ASIN+MP",    "Vendor Group ID",    "Merchant ID",    "Smores link",    "Alias",    "BTR Submission Date",
+    "Offer ID",    "Vendor Code",    "ASIN",    "GL code",    "GL Name",    "MP",    "Country_code",    "Is Heavy Bulky?",
+    "Confirmed Units",    "Confirmed COGS",    "VR Units",    "Number of Reviews"
+]
 
-df_db.to_excel("Stage-1.xlsx", index=False)
 
+df_db[columns_list].to_excel("Stage-1.xlsx", index=False)
+input("Raw data is processed. confirm for the next step : ")
+
+df_db = pd.read_excel("Stage-1.xlsx")
 driver = open_chrome()
 driver.get("https://midway-auth.amazon.com")
 WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "page")))
@@ -193,9 +200,8 @@ if df_db is not None:
                 ct = 0
                 while ct < 20:
                     ct += 1
-                    time.sleep(1)
+                    time.sleep(2)
                     if driver.find_elements(By.ID, "gvs-asin-eligibility-error-alert") : 
-                        print("Refreshing due to eligibility error...")
                         retry = True
                         break
                     if driver.find_elements(By.ID, "gvs-invalid-asin-alert") : 
@@ -214,7 +220,6 @@ if df_db is not None:
                             df_db.at[index, 'Eligible'] = "N"
                         break
                     
-                # none of the conditions met within timeout
                 else:
                     print(f"\nNo condition met for ASIN {row['ASIN']}")
             
@@ -224,14 +229,11 @@ if df_db is not None:
             except Exception as e:
                 print(f"\nError processing ASIN {row['ASIN']}: {e}")
 
-        # After retries failures
         else:
             print(f"\nFailed to process ASIN {row['ASIN']} after multiple attempts.")
             
-    # df_db['Eligible'].fillna("N", inplace = True)
 
 df_db.to_excel("Stage-2.xlsx", index=False)
-
 input("Eligibility check completed. Confirm for next step.")
 
 df_db = pd.read_excel("Stage-2.xlsx")
@@ -241,7 +243,7 @@ df_db = df_db[df_db['Eligible'] == 'Y']
 pivot_table = pd.pivot_table(
                             df_db, 
                             values='ASIN',       # Column to aggregate
-                            index=["Vendor GROUP ID", "Vendor Code", 'Smores link' ],         # Rows
+                            index=["Vendor Group ID", "Vendor Code", 'Smores link' ],         # Rows
                             # columns=['Alias'],   # Columns
                             aggfunc='count',    # Aggregation function
                             fill_value=0        # Replace NaN with 0
@@ -249,16 +251,19 @@ pivot_table = pd.pivot_table(
 
 pivot_table=pivot_table.reset_index()
 pivot_table.rename(columns={'ASIN': 'Count of ASIN'}, inplace=True)
-# df_final = pivot_table.merge(df_unique[['Smores link', 'ASIN']], on='Smores link', how='left')
 pivot_table.to_excel("Stage-3.xlsx", index=False)
 
 input("Pivot table created. Confirm for next step.")
 df = pd.read_excel("Stage-3.xlsx")
 
-# df = pivot_table.copy()
 for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Rows"):
     fetch_active_vine_contracts(row["Smores link"])
 
 df.to_excel("Stage-4.xlsx", index=False)
+
+# Write to one Excel file with two sheets
+with pd.ExcelWriter('summary.xlsx') as writer:
+    pivot_table.to_excel(writer, sheet_name='Raw data', index=False)
+    df.to_excel(writer, sheet_name='Pivot data', index=False)
 
 driver.quit()
