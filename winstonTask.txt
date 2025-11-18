@@ -213,8 +213,6 @@ html3 = f"""
     
 html1 = html1 + html2 + html3
 
-with open("output.html", "w", encoding="utf-8") as f:
-    f.write(html1)
     
 def send_outlook_email(subject, body_html, to_recipients):
     outlook = win32.Dispatch('Outlook.Application')
