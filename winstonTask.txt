@@ -126,19 +126,19 @@ with pd.ExcelWriter("Summary.xlsx", engine='xlsxwriter') as writer:
     worksheet.write('A2', 'Queue Size', cell_format_1)
     
     # Merge B1:D1 with the above format
-    worksheet.merge_range(0, 1, 0, 3, automate, cell_format_2)
-    worksheet.merge_range(1, 1, 1, 3, pct1 + automate, cell_format_2)
+    worksheet.merge_range(0, 1, 0, 4, automate, cell_format_2)
+    worksheet.merge_range(1, 1, 1, 4, pct1 + automate, cell_format_2)
     
     for col_num, value in enumerate(df_final.columns):
         worksheet.write(3, col_num, value, cell_format_2)
         
-    df_final.to_excel(writer, index=False, header=False, startrow=4, sheet_name='Sheet1')
+    df_final.to_excel(writer, index=False, header=False, startrow=3, sheet_name='Sheet1')
     
-    worksheet.write(4+len(df_final), 0, "Total", cell_format_2)
-    worksheet.write(4+len(df_final), 1, df_final["Assigned"].sum(), cell_format_2)
-    worksheet.write(4+len(df_final), 2, df_final["Pending-Other activity"].sum(), cell_format_2)
-    worksheet.write(4+len(df_final), 3, df_final["Pending-MB"].sum(), cell_format_2)
-    worksheet.write(4+len(df_final), 4, df_final["Resolved"].sum(), cell_format_2)
+    worksheet.write(3+len(df_final), 0, "Total", cell_format_2)
+    worksheet.write(3+len(df_final), 1, df_final["Assigned"].sum(), cell_format_2)
+    worksheet.write(3+len(df_final), 2, df_final["Pending-Other activity"].sum(), cell_format_2)
+    worksheet.write(3+len(df_final), 3, df_final["Pending-MB"].sum(), cell_format_2)
+    worksheet.write(3+len(df_final), 4, df_final["Resolved"].sum(), cell_format_2)
     
 
 # draft mail
