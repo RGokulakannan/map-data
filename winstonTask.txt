@@ -223,6 +223,6 @@ def send_outlook_email(subject, body_html, to_recipients):
 
     mail.save()  # Use mail.Display() if you want to review before sending
     
-send_outlook_email("Query", html1, ["rhgokula@amazon.in"])
+send_outlook_email("Daily Report", html1, ["rhgokula@amazon.in"])
 
 
