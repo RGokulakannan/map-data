@@ -130,7 +130,7 @@ with pd.ExcelWriter("Summary.xlsx", engine='xlsxwriter') as writer:
     worksheet.merge_range(1, 1, 1, 4, pct1 + automate, cell_format_2)
     
     for col_num, value in enumerate(df_final.columns):
-        worksheet.write(3, col_num, value, cell_format_2)
+        worksheet.write(2, col_num, value, cell_format_2)
         
     df_final.to_excel(writer, index=False, header=False, startrow=3, sheet_name='Sheet1')
     
@@ -213,17 +213,28 @@ html3 = f"""
     
 html1 = html1 + html2 + html3
 
+with open("output.html", "w", encoding="utf-8") as f:
+    f.write(html1)
     
-def send_outlook_email(subject, body_html, to_recipients):
+def send_outlook_email(subject, body_html, to_recipients, cc_recipients):
     outlook = win32.Dispatch('Outlook.Application')
     mail = outlook.CreateItem(0)  # 0 = olMailItem
     mail.Subject = subject
     mail.HTMLBody = body_html
     mail.To = ";".join(to_recipients)  # multiple recipients separated by ;
-
+    mail.Cc = ";".join(cc_recipients)  # multiple recipients separated by ;
     mail.save()  # Use mail.Display() if you want to review before sending
-    
-send_outlook_email("Daily Report", html1, ["rhgokula@amazon.in"])
 
+
+with open("email.txt", mode="r") as f:
+    f1 = f.read()
+    f1 = f1.splitlines()
+    
+f1 = [x for x in f1 if x and x.strip()]
+cc_loc = f1.index("cc")
+toli = f1[1:cc_loc]
+ccli = f1[cc_loc+1:]
+
+send_outlook_email("Daily Report", html1, toli, ccli)
 
 
