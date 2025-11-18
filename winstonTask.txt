@@ -30,8 +30,6 @@ else:
     pivot_table_p["Pending-MB"] = 0
     
 pivot_table_p['Pending-Other activity'] = pivot_table_p['Total'] - pivot_table_p['Pending-MB']
-
-# pivot_table_p.to_csv("Pending.csv", index=False)
 print(f"Pending Count is {pivot_table_p["Total"].sum()}")
 p_ct = pivot_table_p["Total"].sum()
 
@@ -42,9 +40,10 @@ p_ct = pivot_table_p["Total"].sum()
 pivot_table_a = pd.crosstab(df_assigned['Assigned to'], df_assigned['Status'])
 pivot_table_a['Total'] = pivot_table_a.sum(axis=1)
 pivot_table_a = pivot_table_a.reset_index()
-# pivot_table_a.to_csv("Assigned.csv", index=False)
-print(f"Assigned Count is {pivot_table_a["Total"].sum()}")
-a_ct = pivot_table_a["Total"].sum()
+pivot_table_a.drop('Assigned', axis=1, inplace=True) 
+pivot_table_a.rename(columns={"Total":"Assigned"}, inplace=True)
+print(f"Assigned Count is {pivot_table_a["Assigned"].sum()}")
+a_ct = pivot_table_a["Assigned"].sum()
 
 # Assigned -0
 
