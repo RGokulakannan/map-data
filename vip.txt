@@ -1,0 +1,210 @@
+# v4 version
+
+import os
+import time
+import openpyxl
+import pandas as pd
+from dateutil import parser
+from datetime import datetime, timedelta
+from tqdm import tqdm
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from bs4 import BeautifulSoup
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver import Chrome
+import browser_cookie3
+
+
+def open_chrome():
+    global driver, wait
+    
+    options = Options()
+    options.add_argument('--ignore-certificate-errors')
+    options.add_argument('--ignore-ssl-errors')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument("start-maximized")
+    options.add_argument("log-level=3")
+    
+    driver = Chrome(options=options)
+    wait = WebDriverWait(driver, 30, poll_frequency=1)
+    
+    cj = browser_cookie3.firefox()
+    driver.get('https://midway-auth.amazon.com')
+    wait.until(EC.visibility_of_element_located((By.TAG_NAME, 'body')))
+    
+    for FX_cookie in cj:
+        try:
+            if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+                cookie_dict = {
+                            'domain': FX_cookie.domain,
+                            'name': FX_cookie.name,
+                            'value': FX_cookie.value
+                            }
+                driver.add_cookie(cookie_dict)
+        except:
+            pass
+
+os.remove("output_vip.xlsx") if os.path.exists("output_vip.xlsx") else None
+
+open_chrome()
+
+user_name = os.getlogin()
+
+os.remove('output_vip.xlsx') if os.path.exists('output_vip.xlsx') else None
+
+df = pd.read_excel('input_vip.xlsx')
+
+wait60 = WebDriverWait(driver, 60, poll_frequency=1)
+
+wb = openpyxl.Workbook()
+ws1 = wb.active
+ws1.title = "Specifications"            # Rename if desired
+ws2 = wb.create_sheet(title="Translations")   # Create another sheet named "Sheet2"
+ws3 = wb.create_sheet(title="Klefki")
+
+
+ws1.append(["asin", "mid", "Vendor Code","vc Agg Type",    "Ext Agg Type",    "IPIP",
+    "IPMP",    "MPPP",    "IBQ",    "Min Order Quantity",    "SLA Days",    "Drop Ship",    "Can Order Eaches", "PO"
+])
+
+ws2.append(['Mid', 'Vendor', 'ASIN', 'Type', 'Identifier', 'Source', 'User', 'Date'])
+
+ws3.append(['Vendor', 'ASIN', 'State', 'Type', 'Source'])
+
+lei = { 
+        '9' : '102',
+        '10':'103',
+        '11':'108',
+        '755690533':'129',
+        '695831032' : '130',
+        '7067781925': '137',
+        '14311485635': '141' 
+    }
+
+kmap = {
+    "9": "UK",
+    "10" : "DE",
+    "11" : "FR",
+    "755690533" : "IT",
+    "695831032" : "ES"
+}
+
+for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Status"):
+# for index, row in df.iterrows():
+    try:
+        driver.get(f"https://vendorinfoportal.amazon.com/vip/via.jsp?merchantId={row['mid']}&appMenu=via.jsp&vendorCode={row['vc']}&asin={row['asin']}&ref_=vip_via_asin")
+        ou_li = [row['asin'], row['mid'], row['vc']]
+        wait60.until(EC.presence_of_element_located((By.TAG_NAME, 'table')))
+        time.sleep(1)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        if (soup.find("table").find("th").text.strip() == "Source") : 
+            tr = soup.find("table").find_all("tr")
+            td4 = tr[4].find_all("td")
+            if len(td4) == 10:
+                ou4 = [a.text.strip() for a in td4]
+            else:
+                ou4 = [""] *10
+            
+            td1 = tr[1].find_all("td")
+            if len(td1) == 10:
+                ou1 = [a.text.strip() for a in td1]
+            else:
+                ou1 = [""] *10
+            
+            td2 = tr[2].find_all("td")
+            if len(td2) == 10:
+                ou2 = [a.text.strip() for a in td2]
+            else:
+                ou2 = [""] *10
+            
+            ou_f = []
+            for x,y,z in zip(ou4, ou1, ou2):
+                if x == "" or x is None:
+                    if y == "" or y is None:
+                        ou_f.append(z)
+                    else:
+                        ou_f.append(y)
+                else:
+                    ou_f.append(x)
+            
+            ou_li += ou_f
+        
+    except:
+        ou_li += [""] *10
+        print("Error on", row['asin'])
+        
+    try:
+        lei1 = lei.get(str(row['mid']), None)
+        final_PO = ""
+        if lei1:
+            driver.get(f"https://procurementportal-eu.corp.amazon.com/bp/asin?asin={row['asin']}&lei={lei1}&dateRange=lastMonth&conditions=Submitted%2CPartiallyConfirmed%2CCompletelyConfirmed%2CReserved%2CComplete")
+            WebDriverWait(driver, 30, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "AsinSearch_Pos_Grid_Body")))
+            time.sleep(1)
+            driver.execute_script('window.scroll(0,1700);')    
+            time.sleep(2)
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            main_div = soup.find(id="AsinSearch_Pos_Grid_Body").find(class_="react-grid-Canvas")
+            content_div = main_div.find_all(class_="react-grid-Row")
+            for a in content_div:
+                b = a.find_all(class_='react-grid-Cell')
+                if b:
+                    if b[5].text:
+                        dt = parser.parse(b[5].text)
+                        now = datetime.now(dt.tzinfo)
+                        is_within_14_days = now - timedelta(days=14) <= dt <= now
+
+                        if is_within_14_days:
+                            final_PO += b[0].text+", "
+            
+        ws1.append(ou_li + [final_PO])
+    
+    except:
+        ws1.append(ou_li)
+        
+    try:    
+        driver.get(f"https://vendorinfoportal.amazon.com/vip/vatpo.jsp?merchantId={row['mid']}&appMenu=vatpo.jsp&vendorCode={row['vc']}&asin={row['asin']}&ids={row['asin']}")
+        WebDriverWait(driver, 30, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[@id='vip-results-container' and //div[@class='vip-result-card-header-loading-container vip-translation' and @style='display: none;']]")))
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+        table = soup.find(id="vip-results-container").find("table")
+        content_div = table.find_all("tr")
+        for trow in content_div:
+            td = trow.find_all('td')
+            if td:
+                if td[0].text == row['vc']:
+                    ws2.append([row['mid'], td[0].text, td[1].text, td[2].text, td[3].text, td[4].text,td[5].text, td[6].text])
+    
+    except:
+        pass
+    
+    try:
+        mpname = kmap.get(str(row['mid']), None)
+        
+        if mpname:
+            driver.get(f"https://klefki-website-eu-dub.dub.proxy.amazon.com/web/block-setting/list?marketplace={mpname}&vendorCode={row['vc']}&asin={row['asin']}")
+            WebDriverWait(driver, 40, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'datatable-body')))
+            status = driver.find_element(By.CLASS_NAME,'datatable-body').find_elements(By.TAG_NAME,'div')
+            status = [a.text.strip() for a in status]
+            if len(status)>1:
+                ws3.append(status[3:])
+
+        else:
+            print(row["mid"], "market place is not included in script")
+    
+    except Exception as e:
+        print("Error on", row["asin"])
+        
+    if index%10 == 9:
+        wb.save('output_vip.xlsx')
+
+wb.save('output_vip.xlsx')
+
+driver.quit()
+
