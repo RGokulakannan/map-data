@@ -1,0 +1,165 @@
+# Author : Gokulakannan R
+
+import os
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.options import Options
+from tqdm import tqdm
+from selenium.webdriver import Keys
+
+user_name = os.getlogin()
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--start-maximized')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    driver = webdriver.Chrome(options=options)
+    return driver
+
+def drop_down_select(text1, text2):
+    
+    dropdown = driver.find_element(By.ID, text1)
+    select = Select(dropdown)
+    select.select_by_visible_text(text2)
+    
+driver = open_chrome()
+
+df = pd.read_excel("Input_Starfish.xlsx")
+df["combo"] = df["ASINs"].astype(str) + "," + df["Desired Attribute Value"].astype(str)
+
+for a in range(0, len(df), 10):
+    driver.get("about:blank")
+    asin_li = "\n".join(df["combo"][a:a+10].to_list())
+    driver.get("https://csi.amazon.com/diag/Catalog_Issues_Troubleshooter?resourcePath=Catalog_Issues_Troubleshooter")
+    
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='correct_catalog']")))    
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@value='correct_catalog']").click()
+    time.sleep(0.3)
+    
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='identify_winner']")))    
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@value='identify_winner']").click()
+    time.sleep(0.3)
+    
+    #  Summary ASIN Inputs
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@name='item_id']")))    
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='item_id']").send_keys(df.at[0, 'ASINs'])
+    time.sleep(0.3)
+    drop_down_select("marketplace", "US")
+    time.sleep(0.3)
+    driver.find_element(By.ID, "submit").click()
+    
+    # Attribute Input
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "search_string_input")))
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    drop_down_select("search_string_input", df.at[0, "Attribute Selection"])
+    time.sleep(1)
+    
+    # Contribution view
+    seller_id = WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//tbody/tr/td[6]"))).text
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    
+    # Help Getting the Seller ID
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//label[text()='No']").click()
+    time.sleep(0.5)
+    driver.find_elements(By.ID, "submit")[-1].click()
+    
+    # Please Provide the Seller id contributing Value of attribute size
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@name='user_input_merchant_id']")))
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='user_input_merchant_id']").send_keys(seller_id)
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='sku']").send_keys(df.at[0, 'ASINs'])
+    time.sleep(0.3)
+    driver.find_elements(By.ID, "submit")[-1].click()
+    
+    # Check the ASIN data for appeal!
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "(//tbody)[2]/tr/td[4]")))
+    time.sleep(0.3)
+    for ay in ["4", "8"]:
+        driver.find_element(By.XPATH, f"(//tbody)[2]/tr/td[{ay}]//div[@class='cell-edit-control']").click()
+        time.sleep(0.3)
+        driver.find_element(By.XPATH, f"(//tbody)[2]/tr/td[{ay}]//textarea").send_keys("X")
+        time.sleep(0.3)
+        driver.find_element(By.XPATH, f"(//tbody)[2]/tr/td[{ay}]//textarea").send_keys(Keys.ENTER)
+        time.sleep(0.3)
+    
+    driver.find_elements(By.ID, "submit")[-1].click()
+    # (//tbody)[2]/tr/td[8]//div[@class='cell-edit-control']
+    # (//tbody)[2]/tr/td[8]//div[@class='cell-edit-control']
+    
+    # Solution
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "sf_prompt")))
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    drop_down_select("sf_prompt", "Yes")
+    time.sleep(0.3)    
+    
+    # Single ASIN or multiple ASINs
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='multiple']")))
+    time.sleep(0.2)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@value='multiple']").click()
+    time.sleep(0.3)
+    
+    #Additional Input for the Appeal
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@name='case_id']")))
+    time.sleep(0.3)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='case_id']").send_keys("N/A")
+    time.sleep(0.2)
+    driver.find_element(By.XPATH, "//input[@name='seller_id']").send_keys(seller_id)
+    time.sleep(0.2)
+    driver.find_element(By.XPATH, "//input[@name='merchant_name']").send_keys("data-augmenter-starfish-asin-regeneration-na")
+    time.sleep(0.3)
+    drop_down_select("requester_type", "Non Brand Owner")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='desired_value']").send_keys(df.at[0, "Disagreed Attribute Value"])
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='appeal_reason']").send_keys("Vendor wants to revise the value as per business needs")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//input[@name='evidence']").send_keys(f"https://csi.amazon.com/view?view=blame_o&item_id={df.at[0, "ASINs"]}&marketplace_id=1&customer_id=&merchant_id=&sku=&fn_sku=&gcid=&fulfillment_channel_code=&listing_type=purchasable&submission_id=&order_id=&external_id=&page_token_provided=false&search_string=&realm=USAmazon&region=NA&stage=prod&domain_id=&keyword=&submit=Show")
+    # time.sleep(1)
+    # driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(1)
+    driver.find_elements(By.ID, "submit")[-1].click()
+    
+    # Cut a ticket for Multiple ASIN-Attribute combinations
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//textarea[@name='asinAttributeList']")))
+    time.sleep(0.3)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(0.3)
+    driver.find_element(By.XPATH, "//textarea[@name='asinAttributeList']").send_keys(asin_li)
+    time.sleep(0.3)
+    driver.find_elements(By.ID, "submit")[-1].click()
+    time.sleep(0.3)
+    
+    WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, '//a[text()="SIM"]')))
+    df.loc[a:a+9, "sim"] = driver.find_element(By.XPATH, '//a[text()="SIM"]').get_attribute("href")
+    print(driver.find_element(By.XPATH, '//a[text()="SIM"]').get_attribute("href"))
+    # //a[text()="SIM"]
+    
+df.to_excel("Output_starfish.xlsx", index=False)
+driver.quit()
+
