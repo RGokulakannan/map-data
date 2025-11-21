@@ -59,9 +59,8 @@ def cookie_management():
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True
-    })
-    service = webdriver.chrome.service.Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
-    driver = webdriver.Chrome(service=service, options=options)    
+    })    
+    driver = webdriver.Chrome(options=options)    
     return driver
 
 driver = cookie_management()
