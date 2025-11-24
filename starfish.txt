@@ -79,9 +79,10 @@ for a in range(0, len(df), 10):
     
     # Help Getting the Seller ID
     time.sleep(0.3)
-    driver.find_element(By.XPATH, "//label[text()='No']").click()
-    time.sleep(0.5)
-    driver.find_elements(By.ID, "submit")[-1].click()
+    if len(driver.find_element(By.XPATH, "//label[text()='No']")):
+        driver.find_element(By.XPATH, "//label[text()='No']").click()
+        time.sleep(0.5)
+        driver.find_elements(By.ID, "submit")[-1].click()
     
     # Please Provide the Seller id contributing Value of attribute size
     WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//input[@name='user_input_merchant_id']")))
