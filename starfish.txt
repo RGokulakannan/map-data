@@ -159,10 +159,6 @@ for a in range(0, len(df), 10):
     WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//a[contains(text(),'TT/')]")))
     df.loc[a:a+9, "sim"] = driver.find_element(By.XPATH, "//a[contains(text(),'TT/')]").get_attribute("href")
     
-    # WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, '//a[text()="SIM"]')))
-    # df.loc[a:a+9, "sim"] = driver.find_element(By.XPATH, '//a[text()="SIM"]').get_attribute("href")
-    print(driver.find_element(By.XPATH, '//a[text()="SIM"]').get_attribute("href"))
-    # //a[text()="SIM"]
     
 df.to_excel("Output_starfish.xlsx", index=False)
 driver.quit()
