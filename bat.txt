@@ -30,7 +30,7 @@ driver = open_chrome()
 
 
 df = pd.read_excel("bat_input.xlsx")
-df_out = pd.DataFrame(columns=["asin", "error"])
+df_out = pd.DataFrame(columns=["asin", "id", "error"])
 
 for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Asin"):
     try:
@@ -69,7 +69,7 @@ for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Asin"):
         od = driver.find_element(By.ID, "offerDiagnosticContainer").find_elements(By.TAG_NAME, "h3")
         
         for name1 in od:
-            df_out.loc[len(df_out)] = [row["asin"], name1.text]
+            df_out.loc[len(df_out)] = [row["asin"], row["id"], name1.text]
             
     except:
         pass            
