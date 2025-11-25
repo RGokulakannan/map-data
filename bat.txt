@@ -1,0 +1,80 @@
+import os
+import pandas as pd
+from bs4 import BeautifulSoup
+from time import sleep
+from tqdm import tqdm
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+user_name = os.getlogin()
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    driver = webdriver.Chrome( options=options)
+    return driver
+
+driver = open_chrome()
+
+
+df = pd.read_excel("bat_input.xlsx")
+df_out = pd.DataFrame(columns=["asin", "error"])
+
+for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Asin"):
+    try:
+        # driver.get("about:blank")
+        driver.get("data:text/html,<h1>Welcome</h1>")
+        driver.get(f"https://buyability-analyzer-prod.corp.amazon.com/v2/")
+        
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "getOffers")))
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "domainMarketplaceRealmContainer")))
+        WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.ID, "relationshipTypeGroup")))
+        WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.ID, "olidGroup")))
+        
+        driver.find_element(By.ID, "mkid").clear()
+        sleep(0.2)
+        driver.find_element(By.ID, "mkid").send_keys(row["id"])
+        sleep(0.2)
+        
+        driver.find_element(By.ID, "asin").send_keys(row['asin'])
+        sleep(0.2)
+        
+        driver.find_element(By.ID, "retailMerchant").click()
+        sleep(1)
+        WebDriverWait(driver, 10, poll_frequency=1).until(EC.invisibility_of_element((By.XPATH, "//div[contains(translate(@style,' ',''),'display:block')]/div[@class='spinner']")))
+            
+        fm_txt = driver.find_element(By.ID, "fmid")
+        
+        fm_txt.clear()
+        sleep(0.2)
+        
+        fm_txt.send_keys(row["fm_id"])
+        sleep(0.2)
+        
+        driver.find_element(By.ID, "getOffers").click()
+        sleep(5)
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.invisibility_of_element((By.XPATH, "//div[contains(translate(@style,' ',''),'display:block')]/div[@class='spinner']")))
+        od = driver.find_element(By.ID, "offerDiagnosticContainer").find_elements(By.TAG_NAME, "h3")
+        
+        for name1 in od:
+            df_out.loc[len(df_out)] = [row["asin"], name1.text]
+            
+    except:
+        pass            
+
+
+df_out.to_excel("bat_output.xlsx", index=False)
+driver.quit()
+
