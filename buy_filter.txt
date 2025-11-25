@@ -18,7 +18,7 @@ for name, group in tqdm(df.groupby("sim_id"), total=df["sim_id"].nunique()):
         if response.status_code == 200:
             text = response.text
             # Use regex to extract all JSON arrays after "data:"
-            matches = re.findall(r"data:\s*(\[\{.*?\}\])", text, re.DOTALL)
+            matches = re.findall(r"data:\s*(\[.*?\])", text, re.DOTALL)
 
             all_data = []
 
