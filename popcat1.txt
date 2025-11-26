@@ -1,0 +1,527 @@
+import os
+import time
+import pandas as pd
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import pandas as pd
+from openpyxl.styles import Alignment
+import openpyxl
+from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Border, Side
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options
+import browser_cookie3
+
+user_name = os.getlogin()
+cj = browser_cookie3.firefox()
+
+# Setup options
+firefox_options = Options()
+firefox_options.set_preference("general.useragent.override", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0")
+firefox_options.set_preference("browser.link.open_newwindow", 3)
+firefox_options.set_preference("browser.link.open_newwindow.restriction", 0)
+# Initialize the WebDriver
+driver = webdriver.Firefox(options=firefox_options)
+# Path to the Firefox profile
+#profile_path = f"C:\\Users\\{user_name}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\h4vxqp71.default-esr"
+driver.maximize_window ()
+
+
+
+# Methods Block
+
+def add_cookies():
+    try:
+        driver.get("https://midway-auth.amazon.com")
+        WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//*[text()='Sign in']")))
+        driver.delete_all_cookies()
+        for FX_cookie in cj:
+            try:
+                if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+                    cookie_dict = {'domain': FX_cookie.domain,
+                                'name': FX_cookie.name,
+                                'value': FX_cookie.value}
+                    driver.add_cookie(cookie_dict)
+            except : pass
+        driver.get("about:blank")
+
+    except : 
+        driver.delete_all_cookies()
+        print("Kindly enter your login details, cant copy from firefox")
+
+def highlight_diff(val1, val2):
+    return ['background-color: lightcoral' if v1 != v2 else '' for v1, v2 in zip(val1, val2)]
+
+def color_cell(bg,fc,cell_name):
+
+    for m in cell_name:
+
+        # Specify the cell you want to format
+        cell = sheet[f'{m}1']
+
+        # Define the font color (e.g., red)
+        font = Font(color=fc,bold=True)
+
+        # Apply the font to the cell
+        cell.font = font
+
+        # Optional: Define the fill color for better visibility
+        fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
+        cell.fill = fill
+
+def check_vendor_selection():
+    
+    print("Reading data on Vendor Selection tool : ",end="")
+    
+    try:
+        WebDriverWait(driver,80).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div/div/div/div[2]/div/div[2]/div/div/div[3]/div/div/div[2]/div')))
+        
+        time.sleep(2)
+        text = driver.find_element(By.XPATH,'/html/body/div/div/div/div/div/div[2]/div/div[2]/div/div/div[3]/div/div/div[2]/div').text
+        text = text.split('\n')
+        
+        if(len(text) != 1): text = text[9:13]
+        if(len(text) == 1): text = ["NA"]*4
+        
+        print(text)
+        return text
+        
+        
+    except:
+
+        print("Error on Vendor Selection")
+        return ["","","",""]
+
+def cost_lookup():
+    
+    print("Reading cost price : ",end="")
+    
+    try:
+        # waiting for the table
+        WebDriverWait(driver, 30, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//div[@class='product-cost-table-wrapper']//td")))
+        time.sleep(0.5)
+        tab = driver.find_elements(By.XPATH,"//div[@class='product-cost-table-wrapper']//td")
+        
+        if len(tab) > 10:
+            product_cost = tab[3].text
+            po_cost = tab[1].text
+            print("Product Cost : ",product_cost,"PO Cost : ",po_cost)
+            return [product_cost,po_cost]
+        elif len(tab) == 1:
+            print("Cost price is missing")
+            return ["",""]
+        
+    except:
+        print("cost error")
+        return ["",""]
+
+def crap_check():
+    
+    print("Checking for crap status : ",end="")
+    
+    try:
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'asinSummary')))
+        if len(driver.find_elements(By.CLASS_NAME,'alert-warning')):
+            driver.refresh()
+            time.sleep(2)
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div[2]/div/div[1]/div[1]/div')))
+        c = driver.find_element(By.XPATH,'/html/body/div/div/div[2]/div/div[1]/div[1]/div').find_element(By.TAG_NAME,'span').text
+        print(c)
+        return c
+
+    except:
+        print("Not Found")
+        return ""
+
+def check_Hazmat(asin,mp):
+    
+    print('Reading data on Pandash Tool : Hazmat Level is ',end="")
+    
+    try:
+        # Sending Asin for Search
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'asinsFilter'))).send_keys(asin)
+        # selecting MP
+        driver.find_element(By.ID,mp.lower()).click()
+
+        driver.find_element(By.ID,'btOk').click()
+
+        lvl = WebDriverWait(driver,13).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div[1]/div/div[3]/div[2]/div/div[3]/div[3]/div/table/tbody/tr[2]/td[1]'))).text
+        print(lvl)
+        
+        return lvl
+        
+    except:
+        print("Not Found")
+        return ""
+    
+def get_PO_details():
+    
+    print("Reading minimum PO values : ",end="")
+    
+    try:    
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.presence_of_element_located((By.ID, "minimumPoUnitsInput")))
+        time.sleep(1)
+        apo= driver.find_element(By.ID, "minimumPoUnitsInput").get_attribute("value")
+        bpo= driver.find_element(By.ID, "minimumPoAmountInput").get_attribute("value")
+        cpo= driver.find_element(By.ID, "minimumPoWeightInput").get_attribute("value")
+
+        print(apo,bpo,cpo)
+        return [apo, bpo, cpo]
+        # return [apo.split("=")[1],bpo.split("=")[1],cpo.split("=")[1]]
+    except:
+        print("Not found")
+        return ["","",""]
+
+def get_vendor_info_portal():
+    
+    print("Reading data on Vendor Info Portal : ",end="")
+
+    try:
+        
+        WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div[2]/div[2]/div[2]/div/table/tbody/tr[1]/td[3]')))
+        gl_def_IPIP = driver.find_element(By.XPATH,'/html/body/div[2]/div[2]/div[2]/div/table/tbody/tr[1]/td[3]').text
+        gl_def_IPMP = driver.find_element(By.XPATH,'/html/body/div[2]/div[2]/div[2]/div/table/tbody/tr[1]/td[4]').text
+
+        moq = driver.find_element(By.XPATH,'/html/body/div[2]/div[2]/div[2]/div/div[5]/div[2]/table/tbody/tr[1]/td[2]').text
+        doaq = driver.find_element(By.XPATH,'/html/body/div[2]/div[2]/div[2]/div/div[5]/div[2]/table/tbody/tr[4]/td[2]').text
+
+        print("IPIP - ",gl_def_IPIP,", IPMP - ",gl_def_IPMP,", Minimum Order Quantity - ",moq,", Minimum Order Quantity - Alt. - ",doaq)
+        
+        return(gl_def_IPIP,gl_def_IPMP,moq,doaq)
+        
+        
+    except:
+
+        print("Not found")
+        return ["","","",""]
+
+def klefki():
+    
+    print("Reading data on klefki : ",end="")
+    
+    try:
+        
+        WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'datatable-body')))
+        status = driver.find_element(By.CLASS_NAME,'datatable-body').find_elements(By.TAG_NAME,'div')[5].text
+        print(status)
+        return status
+        
+    except:
+        
+        print("Not Found")
+        return ""
+
+
+
+# Program begins
+add_cookies()
+driver.get("https://prod.cost.vendors.a2z.com/costLookup")
+time.sleep(3)
+driver.delete_all_cookies()
+for FX_cookie in cj:
+    try:
+        if 'prod.cost.vendors.a2z.com' in str(FX_cookie.domain):
+            cookie_dict = {'domain': FX_cookie.domain,
+                        'name': FX_cookie.name,
+                        'value': FX_cookie.value}
+            driver.add_cookie(cookie_dict)
+    except : pass
+driver.get("about:blank")
+
+# program begins
+start_time = time.time()
+
+# Reading Asin
+df = pd.read_excel(f'input.xlsx')
+
+# Output dataframe
+
+data = {
+    
+    "ASIN":[],
+    "Vendor Code":[],
+    "Mkpl":[],
+    "Mkpl_ID":[],
+    "Requested Quantity":[],
+    "Suggested Quantity (basis IPIP, IPMP, MOQ)" :[],
+    "Error Callout / Action Items for AVS":[],
+    "Product Cost (LCY)":[],
+    "PO Cost (LCY)":[],
+    "CRaP Status":[],
+    "Hazmat Status":[],
+    "Kelfki Status":[],     
+    'Exclusion Status':[],
+    'Exclusion Reason':[],
+    'Exclusion by':[],
+    'Exclusion Start Date':[],
+    "PO Units - Minimum      (at overall vendor level)":[],
+    "PO Amount - Minimum (at overall vendor level)":[],
+    "PO Weight - Minimum (at overall vendor level)":[],
+    "Inner Pack per Inner Pack":[],
+    "Inner Pack per Master Pack":[],
+    "Minimum Order Quantity":[],
+    "Minimum Order Quantity - Alt.":[],
+    
+    
+}
+
+mid = ('18063832625','14311485635','18034145125','6740020445','8699487222','21786786912')
+mname = ('sa','tr','ae','au','sg', 'eg')
+mkid = ('338811', '338851', '338801', '111172', '104444012', '623225021')
+
+for a, b in df.iterrows():
+    
+    print("Processing on",b['ASIN'],'left',len(df)-a)
+    
+    if b['Mkpl'].lower() in mname:
+        no = mname.index(b['Mkpl'].lower())
+    else:
+        print("Marketplace not found in list, skipping this ASIN")
+        continue
+    
+    driver.execute_script(f"window.open('https://pandash.amazon.com');")
+    driver.execute_script(f"window.open('https://vendorselection-eu-dub.dub.proxy.amazon.com/SourcingRestrictions/search?restrictionsType=VendorAsin&asin={b['ASIN']}&vendorCode={b['Vendor Code']}&status=Active');")
+    driver.execute_script(f"window.open('https://prod.cost.vendors.a2z.com/costLookup?marketplaceId={mkid[no]}&asin={b['ASIN']}&vendorCode={b['Vendor Code']}&quantity=1&showHistory=true');")
+    driver.execute_script(f"window.open('https://vops-na.corp.amazon.com/#/update/vendorCode/purchasingTerms/{b['Vendor Code']}');")
+    driver.execute_script(f"window.open('https://vendorinfoportal.amazon.com/vip/via.jsp?merchantId={mid[no]}&appMenu=via.jsp&vendorCode={b['Vendor Code']}&asin={b['ASIN']}');")
+    driver.execute_script(f"window.open('https://klefki-website-eu-dub.dub.proxy.amazon.com/web/block-setting/list?marketplace={b['Mkpl'].upper()}&vendorCode={b['Vendor Code']}&asin={b['ASIN']}%20');")
+    crap_mid = "176335188512" if mid[no] == "21786786912" else mid[no]
+    driver.execute_script(f"window.open('https://selectioneconomics-web-dub.dub.proxy.amazon.com/asinStatus?asin={b['ASIN']}&merchantId={crap_mid}');")
+    
+    time.sleep(2)
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # Step 4 Hazmat check
+    lvl = check_Hazmat(b['ASIN'],b['Mkpl'])
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # Step 1 vendor selection portal
+    vc_txt = check_vendor_selection()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # step 2 check cost price 
+    cost_price = cost_lookup()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # step 5 get PO minmium values from Vendor Master
+    po_min = get_PO_details()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # step 6 get data from Vendor Info Portal
+    vip = get_vendor_info_portal()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # Step 7 get klefki
+    kle = klefki()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[-1])
+    # Step 3 Crap Check
+    crap = crap_check()
+    driver.close()
+    
+    driver.switch_to.window(driver.window_handles[0])
+    
+    data['ASIN'].append(b['ASIN'])
+    data['Vendor Code'].append(b['Vendor Code'])
+    data['Mkpl'].append(b['Mkpl'])
+    data["Mkpl_ID"].append(mkid[no])
+    data['Requested Quantity'].append(b['Requested Quantity'])
+    data['Exclusion Status'].append(vc_txt[0])
+    data['Exclusion Reason'].append(vc_txt[1])
+    data['Exclusion by'].append(vc_txt[2])
+    data['Exclusion Start Date'].append(vc_txt[3])
+    data['Product Cost (LCY)'].append(cost_price[0])
+    data['PO Cost (LCY)'].append(cost_price[1])
+    data['CRaP Status'].append(crap)
+    data['Hazmat Status'].append(lvl)
+    data['PO Units - Minimum      (at overall vendor level)'].append(po_min[0])
+    data['PO Amount - Minimum (at overall vendor level)'].append(po_min[1])
+    data['PO Weight - Minimum (at overall vendor level)'].append(po_min[2])
+    data['Inner Pack per Inner Pack'].append(vip[0])
+    data['Inner Pack per Master Pack'].append(vip[1])
+    data['Minimum Order Quantity'].append(vip[2])
+    
+    try:
+        car = int(vip[3])
+        re_qty =b['Requested Quantity']
+
+        fi = 0
+
+        if(re_qty>car):
+
+            if(re_qty%car)<car/2:
+                fi = (re_qty//car)*car
+            else:
+                fi = (re_qty//car+1)*car
+                
+        else:
+            fi = car
+    except:
+        fi = "error"
+    
+    # filling Suggested Quantity (basis IPIP, IPMP, MOQ)    
+    data['Suggested Quantity (basis IPIP, IPMP, MOQ)'].append(fi)
+    
+        
+    data['Minimum Order Quantity - Alt.'].append(vip[3])
+    data['Kelfki Status'].append(kle)
+    
+    fi_co = ""
+    
+    if(vc_txt[0] != 'NA' or cost_price[0] == "" or crap == "Crap" or lvl == "0" or kle == 'is blocked'): 
+        fi_co = "Fix needed - "
+        
+        if (vc_txt[0] != 'NA'): 
+            fi_co = fi_co + 'Exclusion, '
+        if (cost_price[0] == "") : 
+            fi_co = fi_co + "Cost Price, "
+        if (crap == "Crap") : 
+            fi_co = fi_co +"Crap, "
+        if (lvl == "0") : 
+            fi_co = fi_co +"Hazmat, "
+        if (kle == 'is blocked'):
+            fi_co = fi_co +"Klefki, "
+            
+        fi_co = fi_co[:-2]
+        
+    else:
+        fi_co = "Ok"
+    
+    
+    print(fi_co)
+    data['Error Callout / Action Items for AVS'].append(fi_co)
+    
+    
+    print()
+
+
+    df_fin = pd.DataFrame(data)
+    df_fin.to_excel(f'output.xlsx',index=False)
+    
+
+
+styled_df = df_fin.style.map(lambda x: 'background-color: tomato' if x == 'is blocked' or x == 'Crap' else None)\
+                        .map(lambda x: 'background-color: tomato' if x != 'NA' else None,subset=['Exclusion Status','Exclusion Reason','Exclusion by','Exclusion Start Date'])\
+                        .map(lambda x: 'background-color: tomato' if x == '' else None,subset=['PO Cost (LCY)','Product Cost (LCY)'])\
+                        .map(lambda x: 'background-color: tomato' if x == '0' else None,subset = ['Hazmat Status'])\
+                        .map(lambda x: 'background-color: lightgreen' ,subset = ['Suggested Quantity (basis IPIP, IPMP, MOQ)'] )\
+                        .apply(lambda x: highlight_diff(df_fin['Requested Quantity'], df_fin['Suggested Quantity (basis IPIP, IPMP, MOQ)']), axis=0, subset=['Suggested Quantity (basis IPIP, IPMP, MOQ)'])
+
+styled_df.to_excel(f'output.xlsx', engine='openpyxl', index=False)
+
+
+loc = (f"output.xlsx")
+
+
+
+# Load the Excel workbook
+workbook = openpyxl.load_workbook(loc)
+
+# Select the active sheet (or specify a sheet name with workbook[sheetname])
+sheet = workbook.active
+
+# insert all border
+# Define the border style
+thin_border = Border(
+    left=Side(style='thin'),
+    right=Side(style='thin'),
+    top=Side(style='thin'),
+    bottom=Side(style='thin')
+)
+
+# Define the range of cells to apply the border
+max_row = len(df)+1  # Adjust this to your maximum row
+max_col = 23  # Adjust this to your maximum column
+
+# Apply the border to all cells
+for row in sheet.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col):
+    for cell in row:
+        cell.border = thin_border
+
+
+# Set the width of a specific column (e.g., column 'A')
+sheet.column_dimensions['A'].width = 12
+sheet.column_dimensions['B'].width = 13
+sheet.column_dimensions['C'].width = 8
+sheet.column_dimensions['D'].width = 9
+sheet.column_dimensions['E'].width = 12
+sheet.column_dimensions['F'].width = 21
+sheet.column_dimensions['G'].width = 40
+sheet.column_dimensions['H'].width = 18
+sheet.column_dimensions['I'].width = 18
+sheet.column_dimensions['J'].width = 12
+sheet.column_dimensions['K'].width = 13
+sheet.column_dimensions['L'].width = 12
+sheet.column_dimensions['M'].width = 14
+sheet.column_dimensions['N'].width = 24
+sheet.column_dimensions['O'].width = 16
+sheet.column_dimensions['P'].width = 14
+sheet.column_dimensions['Q'].width = 21
+sheet.column_dimensions['R'].width = 21
+sheet.column_dimensions['S'].width = 21
+sheet.column_dimensions['T'].width = 15
+sheet.column_dimensions['U'].width = 15
+sheet.column_dimensions['V'].width = 15
+sheet.column_dimensions['W'].width = 15
+
+
+# Define columns you want to center align (e.g., column A and B)
+columns_to_center = ['A', 'B','C','D','E','F','H','I','J','K','M','N','O','P','Q','R','S','T','U','V','W']
+
+# Iterate through each column
+for col in columns_to_center:
+    # Iterate through all cells in the column
+    for cell in sheet[col]:
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+
+red_co = "FF0000"
+yellow_co = "FFFF00"
+black_co = "000000"
+white_co = "FFFFFF"
+
+cell_name = ['A','B','C','D','E']
+color_cell(yellow_co,red_co,cell_name)
+
+cell_name = ['F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W']
+color_cell(black_co,white_co,cell_name)
+
+
+# row dimension ,changing for first row
+sheet.row_dimensions[1].height = 40
+
+# looping through all the cells
+for cell in sheet[1]:
+    cell.alignment = Alignment(wrap_text=True,horizontal='center', vertical='center')
+    
+# insert new row in 1
+sheet.insert_rows(1)    
+sheet['A1'] = "Inputs provided"
+sheet['F1'] = "Final PO Qty to be raised"
+sheet['H1'] = "Reference values"
+
+sheet.merge_cells('A1:E1')
+
+# Center align the text in the merged cells
+sheet['A1'].alignment = Alignment(horizontal='center', vertical='center')
+sheet.row_dimensions[1].height = 20
+
+
+# Save the workbook with changes
+workbook.save(f'output.xlsx')
+
+
+
+driver.quit()
+end_time = time.time()
+duration = end_time - start_time
+print("Time duration of program : ", round(duration,2), "seconds")
+time.sleep(20)
