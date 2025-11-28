@@ -142,12 +142,19 @@ with pd.ExcelWriter("Summary.xlsx", engine='xlsxwriter') as writer:
     worksheet.write(3+len(df_final), 4, df_final["Resolved"].sum(), cell_format_2)
     
 
+queueSize = pct1 + automate
+
 # draft mail
 
 html1="""<!DOCTYPE html>
 <html>
 <head>
     <style>
+    table.opensim
+        {
+            background-color: cadetblue;
+            color: white;
+        }
         table {
             border-collapse: collapse;
             text-align: center;            
@@ -170,6 +177,18 @@ html1="""<!DOCTYPE html>
 <body>
 <div>Hello Team,</div>
 <p><mark>Please find the queue status</p>
+
+<table class = "opensim" border="1" style="border-collapse: collapse; width: 500px;">
+<tr>
+    <td>Automate</td>
+    <td> """ + str(automate) +"""</td>
+    </tr>
+    <tr>
+    <td>Queue Size</td>
+    <td>"""+str(queueSize)+"""</td>
+</tr>
+</table>
+
 <table border="1">
     <thead>
         <tr>
