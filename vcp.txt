@@ -67,6 +67,10 @@ def run_thread(data_chunk, thread_id):
     process_data(driver, data_chunk, thread_id)
 
 
+# Check if the file exists
+if os.path.exists("final_output_po.xlsx"):
+    os.remove("final_output_po.xlsx")
+
 cj = browser_cookie3.firefox()
 user_name = os.getlogin()
 n_threads = 3   # Split the 900 rows into 3 parts
