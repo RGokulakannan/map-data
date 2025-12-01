@@ -24,21 +24,7 @@ def setup_browser():
     # Uncomment if you want headless mode:
     # chrome_options.add_argument("--headless")
     # service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
-    driver = webdriver.Chrome(options=chrome_options)
-    
-    driver.get('https://midway-auth.amazon.com')
-    sleep(5)
-    for FX_cookie in cj:
-        try:
-            if 'midway-auth.amazon.com' in str(FX_cookie.domain):
-                cookie_dict = {
-                            'domain': FX_cookie.domain,
-                            'name': FX_cookie.name,
-                            'value': FX_cookie.value
-                            }
-                driver.add_cookie(cookie_dict)
-        except:
-            pass
+    driver = webdriver.Chrome(options=chrome_options)    
     return driver
 
 def process_data(driver, data_chunk, thread_id):
