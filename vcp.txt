@@ -1,0 +1,134 @@
+import threading
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
+import os
+import pandas as pd
+from tqdm import tqdm
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import numpy as np
+import browser_cookie3
+from time import sleep
+from selenium.webdriver.support.ui import Select
+
+
+
+def setup_browser():
+    chrome_options = Options()
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--log-level=3")      # Only show fatal logs
+    # Uncomment if you want headless mode:
+    # chrome_options.add_argument("--headless")
+    # service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    driver = webdriver.Chrome(options=chrome_options)
+    
+    driver.get('https://midway-auth.amazon.com')
+    sleep(5)
+    for FX_cookie in cj:
+        try:
+            if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+                cookie_dict = {
+                            'domain': FX_cookie.domain,
+                            'name': FX_cookie.name,
+                            'value': FX_cookie.value
+                            }
+                driver.add_cookie(cookie_dict)
+        except:
+            pass
+    return driver
+
+def process_data(driver, data_chunk, thread_id):
+    print(f"[Data {thread_id}] Processing {len(data_chunk)} rows...")
+    # looping over given PO
+    for index, row in tqdm(data_chunk.iterrows(), total=len(data_chunk), desc="POs"):
+        try:
+            # to open the url in browser
+            driver.get("data:text/html,<h1>welcome</h1>")      
+            time.sleep(0.3)
+            
+            driver.get("https://ipcre-eu-jlb-dub.dub.proxy.amazon.com/configuration/VendorContainerParameters/?scopeId=AMAZON_DE&glProductGroupId")
+            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "vendorId"))).send_keys(row['vc'].strip())
+            sleep(1)
+            driver.find_element(By.XPATH, "//button[text()='Load']").click()
+            sleep(1)
+
+            WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.CLASS_NAME, "spinner-border")))
+            sleep(1)
+
+            driver.execute_script("window.scrollTo(0, 400);")
+            sleep(0.5)
+
+            select = Select(driver.find_element(By.XPATH, "//tr[td[text()='Use Standard 20S Container']]//select"))
+            select.select_by_value("false")
+            sleep(0.5)
+
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            sleep(0.5)
+
+            driver.find_element(By.XPATH, "//button[text()='Save']").click()
+            sleep(0.5)
+
+            WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.CLASS_NAME, "spinner-border")))
+            sleep(1)
+
+            ct =0
+            while ct < 30:
+                ct+=1
+                sleep(2)
+                
+                success = driver.find_elements(By.CLASS_NAME, "alert-success")
+                error = driver.find_elements(By.CLASS_NAME, "alert-danger")
+                
+                if success:
+                    data_chunk.at[index, 'Status'] = "OK"
+                    break
+                
+                if error:
+                    data_chunk.at[index, 'Status'] = "No"
+                    break
+
+            else:
+                print("No Success and No Error")
+
+        except Exception as e:
+            data_chunk.at[index, 'Status'] = "error"
+
+    # data_chunk.to_excel(f"output_po_{thread_id}.xlsx", index=False)
+    dfs.append(data_chunk)
+    print(f"[Data {thread_id}] Done.")
+    driver.quit()
+
+def run_thread(data_chunk, thread_id):
+    driver = setup_browser()
+    process_data(driver, data_chunk, thread_id)
+
+
+cj = browser_cookie3.firefox()
+user_name = os.getlogin()
+n_threads = 3   # Split the 900 rows into 3 parts
+df = pd.read_excel('input.xlsx')  # Replace with your actual file
+n = len(df)
+dfs = []
+
+
+# Use numpy to split the index positions
+data_chunks = np.array_split(df, n_threads)
+
+threads = []
+for i in range(n_threads):
+    t = threading.Thread(target=run_thread, args=(data_chunks[i], i + 1))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+
+# Merge (concatenate) all into one DataFrame
+merged_df = pd.concat(dfs, ignore_index=True)
+merged_df.to_excel("final_output_po.xlsx", index=False)
+
+print("All tasks are completed.")
