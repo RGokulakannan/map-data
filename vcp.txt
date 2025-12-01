@@ -45,40 +45,14 @@ def process_data(driver, data_chunk, thread_id):
             WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.CLASS_NAME, "spinner-border")))
             sleep(1)
 
-            driver.execute_script("window.scrollTo(0, 400);")
-            sleep(0.5)
+            dd = driver.execute_script( """
+const selectEl = ([...document.querySelectorAll('*')]
+    .find(e => e.innerText.replace(/\s+/g,' ').trim() === "Use Standard 20S Container")?.nextElementSibling)?.querySelector('select');
+    return selectEl.options[selectEl.selectedIndex].text;
 
-            select = Select(driver.find_element(By.XPATH, "//tr[td[text()='Use Standard 20S Container']]//select"))
-            select.select_by_value("false")
-            sleep(0.5)
+""" )
 
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            sleep(0.5)
-
-            driver.find_element(By.XPATH, "//button[text()='Save']").click()
-            sleep(0.5)
-
-            WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.CLASS_NAME, "spinner-border")))
-            sleep(1)
-
-            ct =0
-            while ct < 30:
-                ct+=1
-                sleep(2)
-                
-                success = driver.find_elements(By.CLASS_NAME, "alert-success")
-                error = driver.find_elements(By.CLASS_NAME, "alert-danger")
-                
-                if success:
-                    data_chunk.at[index, 'Status'] = "OK"
-                    break
-                
-                if error:
-                    data_chunk.at[index, 'Status'] = "No"
-                    break
-
-            else:
-                print("No Success and No Error")
+            data_chunk.at[index, 'Status'] = dd
 
         except Exception as e:
             data_chunk.at[index, 'Status'] = "error"
