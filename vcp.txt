@@ -37,7 +37,7 @@ def process_data(driver, data_chunk, thread_id):
             time.sleep(0.3)
             
             driver.get("https://ipcre-eu-jlb-dub.dub.proxy.amazon.com/configuration/VendorContainerParameters/?scopeId=AMAZON_DE&glProductGroupId")
-            WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "vendorId"))).send_keys(row['vc'].strip())
+            WebDriverWait(driver, 200, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "vendorId"))).send_keys(row['vc'].strip())
             sleep(1)
             driver.find_element(By.XPATH, "//button[text()='Load']").click()
             sleep(1)
