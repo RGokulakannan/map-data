@@ -1,4 +1,4 @@
-# v4 version
+# v5 version
 
 import os
 import time
@@ -19,7 +19,7 @@ import browser_cookie3
 
 
 def open_chrome():
-    global driver, wait
+    global driver, wait60
     
     options = Options()
     options.add_argument('--ignore-certificate-errors')
@@ -31,11 +31,14 @@ def open_chrome():
     options.add_argument("log-level=3")
     
     driver = Chrome(options=options)
-    wait = WebDriverWait(driver, 30, poll_frequency=1)
+    wait60 = WebDriverWait(driver, 60, poll_frequency=1)
+    
     
     cj = browser_cookie3.firefox()
     driver.get('https://midway-auth.amazon.com')
-    wait.until(EC.visibility_of_element_located((By.TAG_NAME, 'body')))
+    time.sleep(1)
+    wait60.until(EC.visibility_of_element_located((By.TAG_NAME, 'body')))
+    driver.delete_all_cookies()
     
     for FX_cookie in cj:
         try:
@@ -49,17 +52,17 @@ def open_chrome():
         except:
             pass
 
-os.remove("output_vip.xlsx") if os.path.exists("output_vip.xlsx") else None
+os.remove('output_vip.xlsx') if os.path.exists('output_vip.xlsx') else None
+user_name = os.getlogin()
+df = pd.read_excel('input_vip.xlsx')
+
+
 
 open_chrome()
 
-user_name = os.getlogin()
+driver.get("https://procurementportal-eu.corp.amazon.com")
+wait60.until(EC.visibility_of_element_located((By.ID, "ViewPosSearchTable")))
 
-os.remove('output_vip.xlsx') if os.path.exists('output_vip.xlsx') else None
-
-df = pd.read_excel('input_vip.xlsx')
-
-wait60 = WebDriverWait(driver, 60, poll_frequency=1)
 
 wb = openpyxl.Workbook()
 ws1 = wb.active
