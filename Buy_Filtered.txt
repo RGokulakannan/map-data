@@ -43,11 +43,11 @@ for name, group in tqdm(df.groupby("sim_id"), total=df["sim_id"].nunique()):
     df_out.groupby(["ASIN", "Filtering reason"], as_index=False).agg(
         total_qty=("Units", "sum"),
         bundle_id=("bundle_id", "first")
-    ).to_excel(f"filtered_{name}.xlsx", index=False)
+    ).to_excel(f"PO Filtered ASINs_{name}.xlsx", index=False)
 
-    # df_out.to_excel(f"filtered_{name}.xlsx", index=False)
     
-    with pd.ExcelWriter(f"filtered_{name}.xlsx", engine="xlsxwriter") as writer:
+    
+    with pd.ExcelWriter(f"PO Filtered ASINs_{name}.xlsx", engine="xlsxwriter") as writer:
         df_out.to_excel(writer, index=False, sheet_name="Sheet1")
 
         workbook  = writer.book
