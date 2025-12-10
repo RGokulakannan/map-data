@@ -10,7 +10,7 @@ df = pd.read_excel("input.xlsx")
 
 for name, group in tqdm(df.groupby("sim_id"), total=df["sim_id"].nunique()):
     # Create an empty DataFrame with specific columns
-    df_out = pd.DataFrame(columns=["ASIN", "Units", "Filtering reason", "bundle_id"])
+    df_out = pd.DataFrame(columns=["Asin", "units", "Filtering reason", "bundle_id"])
     for index, row in group.iterrows():
         
         response = requests.get(f'https://na.sourcing-execution-tools.scot.amazon.dev/workflow/req/?planId={row['bundle_id'].strip()}', cookies=cookie)
@@ -37,32 +37,20 @@ for name, group in tqdm(df.groupby("sim_id"), total=df["sim_id"].nunique()):
                                             a.get("workflowOverrideReason"),
                                             row['bundle_id']
                                             ]
-        else:
-            print("Failed to retrieve the webpage. Status code:", response.status_code)
+                    
+                    # print(a.get("pk").get("asin")," --- " ,a.get("pk").get("fc"), " -- ", ct, " - ", a.get("workflowOverrideReason")\
+                    #     , " - ", a.get("purchaseOrderId"), " - ", a.get("overrideQty"), " - ", a.get("filteredFlag"))
+                
 
-    df_out.groupby(["ASIN", "Filtering reason"], as_index=False).agg(
-        total_qty=("Units", "sum"),
+        else:
+            print("\nFailed to retrieve the webpage. Status code:", response.status_code)
+
+    df_out.groupby(["Asin", "Filtering reason"], as_index=False).agg(
+        total_qty=("units", "sum"),
         bundle_id=("bundle_id", "first")
     ).to_excel(f"PO Filtered ASINs_{name}.xlsx", index=False)
 
-    
-    
-    with pd.ExcelWriter(f"PO Filtered ASINs_{name}.xlsx", engine="xlsxwriter") as writer:
-        df_out.to_excel(writer, index=False, sheet_name="Sheet1")
-
-        workbook  = writer.book
-        worksheet = writer.sheets["Sheet1"]
-
-        # Define header style
-        header_format = workbook.add_format({
-            "bold": True,
-            "bg_color": "yellow",
-            "border": 1
-        })
-
-        # Apply style to header row
-        for col_num, value in enumerate(df_out.columns):
-            worksheet.write(0, col_num, value, header_format)
+    # df_out.to_excel(f"filtered_{name}.xlsx", index=False)
 
     
 
