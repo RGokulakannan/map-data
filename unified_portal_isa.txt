@@ -1,0 +1,149 @@
+import os, glob, browser_cookie3
+import time
+import pandas as pd
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver import Chrome
+
+
+print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+user_name = os.getlogin()
+
+# Get the current working directory
+current_directory = os.getcwd()
+current_directory = current_directory + '\\download'
+os.makedirs(current_directory, exist_ok=True)
+
+def removeAllFiles():
+    files = glob.glob(os.path.join(current_directory, '*'))
+    # Loop through the files and delete them
+    for file in files:
+        try:
+            os.remove(file)
+        except Exception as e:
+            print(f"Error deleting {file}: {e}")
+            
+removeAllFiles()  
+
+def openChrome():
+    global driver, wait
+    options = Options()
+    options.add_argument('--ignore-certificate-errors')
+    options.add_experimental_option("prefs", {"download.default_directory": current_directory,"download.prompt_for_download": False,"download.directory_upgrade": True,"safebrowsing.enabled": True})
+    service = Service()
+    driver = Chrome(service=service, options=options)
+    cj = browser_cookie3.firefox()
+    driver.get('https://midway-auth.amazon.com')
+    for FX_cookie in cj:
+        try:
+            if 'midway-auth.amazon.com' in str(FX_cookie.domain):
+                cookie_dict = {'domain': FX_cookie.domain,
+                            'name': FX_cookie.name,
+                            'value': FX_cookie.value}
+                # 'secure': FX_cookie.secure}
+                driver.add_cookie(cookie_dict)
+        except:
+            pass
+    driver.get('https://midway-auth.amazon.com')
+
+    driver.maximize_window()
+    wait = WebDriverWait(driver, 30)
+    
+openChrome()
+
+def get_latest_downloaded_file(download_dir):
+    # Get a list of files in the download directory
+    list_of_files = glob.glob(os.path.join(download_dir, '*'))  # * means all file types
+    if not list_of_files:
+        return None
+    # Find the most recent file
+    latest_file = max(list_of_files, key=os.path.getmtime)
+    return latest_file
+
+def Po_list_45(df):
+    
+    po_45_list = []
+    
+    no_Asin = 45
+    # Loop through the column in chunks of 50
+    for i in range(0, len(df), no_Asin):
+        # Select the next 50 items from the column 'A'
+        chunk = df['PO'][i:i + no_Asin]
+        
+        # Convert the chunk to a comma-separated string
+        chunk_string = ','.join(chunk.astype(str))
+        
+        # Append the string to the list
+        po_45_list.append(chunk_string)
+        
+    return po_45_list
+
+def getDataUnified_portal(po_45):
+    
+    unifiedPortal = []
+    
+    for index, a in enumerate(po_45, start=1):
+        
+        print(index*45, ' processing ', end=" ")
+
+        try:
+            driver.get("https://unified-portal-eu.corp.amazon.com/#/appointment")
+
+            WebDriverWait(driver, 200).until(EC.visibility_of_element_located((By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-appointment/div/mat-tab-group/div/mat-tab-body[1]/div/up-appointment-id-appointment-search-panel/div/div[1]/mat-form-field/div/div[1]/div/mat-select'))).click()
+            time.sleep(1)
+            
+            tb = driver.find_element(By.XPATH, '/html/body/div[2]/div[2]/div').find_elements(By.TAG_NAME,'mat-option')
+
+            for b in tb:
+                if b.text == 'ISA' : 
+                    b.click()
+                    break
+            
+            time.sleep(1)
+            sea = driver.find_element(By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-appointment/div/mat-tab-group/div/mat-tab-body[1]/div/up-appointment-id-appointment-search-panel/div/div[2]/mat-form-field/div/div[1]/div/input')
+            sea.send_keys(a)
+            
+            driver.find_element(By.CLASS_NAME,'mat-raised-button.mat-primary').click()
+            
+            time.sleep(1)
+            WebDriverWait(driver, 20, poll_frequency=1).until(EC.invisibility_of_element((By.CLASS_NAME, 'mat-progress-bar.mat-primary')))
+            
+            driver.find_element(By.XPATH, "//mat-panel-title/div/button[2]").click()
+
+            time.sleep(2)
+            driver.get('about:blank')
+            
+            newFile = get_latest_downloaded_file(current_directory)
+            
+            try:
+                df_1 = pd.read_csv(newFile)
+                unifiedPortal.append(df_1)
+            except:
+                pass
+            print("done")
+        except:
+            print("failed")
+            
+    df_unified = pd.concat(unifiedPortal, ignore_index=True)
+    df_unified['searchId'] = df_unified['searchId'].str.split(',')
+    df_unified = df_unified.explode('searchId')
+    if len(df_unified) > 1 :
+        df_unified.to_excel("Output.xlsx", index=False)
+    else :          
+        print("No data found in any PO")
+        
+# reading hcpo sims
+po_asin_unique_df = pd.read_excel('po_input.xlsx')
+
+# divide PO by 50 each in list
+po_list_45 = Po_list_45(po_asin_unique_df)
+
+df_unified_portal = getDataUnified_portal(po_list_45)
+
+time.sleep(4)
+driver.quit()
+print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+time.sleep(10)
