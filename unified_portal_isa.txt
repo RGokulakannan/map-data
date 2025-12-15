@@ -128,8 +128,6 @@ def getDataUnified_portal(po_45):
             print("failed")
             
     df_unified = pd.concat(unifiedPortal, ignore_index=True)
-    df_unified['searchId'] = df_unified['searchId'].str.split(',')
-    df_unified = df_unified.explode('searchId')
     if len(df_unified) > 1 :
         df_unified.to_excel("Output.xlsx", index=False)
     else :          
