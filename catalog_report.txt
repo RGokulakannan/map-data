@@ -199,7 +199,7 @@ def cost_data(df):
         return False
     
 def download_sql():
-    print("Downloading data from slt with 20 mins timeout", end=" ")
+    print("Downloading data from sql with 20 mins timeout", end=" ")
     try:
         # driver.find_element(By.XPATH, "//input[@aria-label='Select a Select a download format']")
         WebDriverWait(driver, 1200, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//input[@aria-label='Select a Select a download format']")))
@@ -271,7 +271,8 @@ def download_slt():
             wt += 1
             driver.refresh()
             time.sleep(10)
-            if not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]"):
+            if not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]") or \
+                not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'SCHEDULED')]"):
                 break
             
         else:
@@ -517,6 +518,7 @@ if f3:
     driver.execute_script(f"window.open('about:blank', 'cost');")
     driver.switch_to.window("cost")    
     cost_data(df)
+    df[['Cost Price', 'Procurability Status', 'sourceability_status']] = ""
     
     time.sleep(30)
     # for tabName in ["sql_data", "slt", "cost"]:
@@ -603,3 +605,4 @@ driver.quit()
 end = time.perf_counter()
 duration_minutes = (end - start) / 60
 print(f"Task took {duration_minutes:.2f} minutes")
+time.sleep(40)
