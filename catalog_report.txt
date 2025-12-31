@@ -1,0 +1,603 @@
+import pandas as pd, time, os
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium import webdriver
+from bs4 import BeautifulSoup
+from pathlib import Path
+import warnings
+from openpyxl import load_workbook
+import zipfile
+from selenium.webdriver.support.ui import Select
+from datetime import datetime
+
+
+
+def openChrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--start-maximized')
+    options.add_argument('--log-level=3')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    service = Service(f"c:\\Users\\{user_name}\\driver\\chromedriver.exe")
+    download_path = downloadFolder
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def clearDir(dir):
+    folder = Path(dir)
+    for file in folder.iterdir():
+        if file.is_file():
+            file.unlink()
+        
+def get_sql_data(df, vc):
+    print("Loading data in Workbench", end=" ")
+    try:    
+        driver.get("https://datacentral.a2z.com/workbench")
+        WebDriverWait(driver, 200, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='Select a Database']"))).send_keys("F2DW_Hubble"+"\n")
+
+        script = """    
+        function selectMantineOption(optionText) {
+        const input = document.querySelector('input[data-cy="db-select-dropdown"]');
+        input.focus();         // focus input
+        input.click();         // open dropdown
+
+        setTimeout(() => {
+            const option = [...document.querySelectorAll('div[class="mantine-xlwgkm mantine-ScrollArea-viewport"] > div > div > div')]
+                .find(el => el.textContent.trim() === optionText);
+
+            if(option) {
+                // Simulate user-like events
+                option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                option.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+                console.log('Option selected:', optionText);
+            } else {
+                console.log('Option not found:', optionText);
+            }
+        }, 200);
+    }
+
+    // Usage
+    selectMantineOption('F2DW_Hubble');
+        """
+        
+        # driver.execute_script(script)
+        time.sleep(5)
+
+        
+        a1 = """select
+    fnsku,
+    vendor_ordering_code, sourceability_status,
+    max (last_status_changed_time) as last_status_changed_time
+
+    from
+    ANDES."vpsi-sourceability".sourceability_state_history_prod_fe
+
+    where
+    fnsku in (
+        """
+        
+        a2 = ",".join(f"'{x}'" for x in df['asin'])
+        
+        a3 = f"""
+    )
+    and vendor_ordering_code = '{vc}'
+
+    group by
+    1,2,3
+        """
+        script = f"""
+        var editor = ace.edit(document.querySelector('.ace_editor'));
+        editor.setValue(
+        `{a1}{a2}{a3}`,
+        -1
+        );
+        """
+        
+        driver.execute_script(script)
+        time.sleep(2)
+        
+        # driver.find_element(By.XPATH, "//button[@aria-label='submit-query-button']").click()
+        run_script = """document.querySelector("button[aria-label='submit-query-button']").click();
+        """
+        
+        driver.execute_script(run_script)
+        
+        time.sleep(4)
+        print("ok")
+        return True
+    
+    except:
+        print("Failed")
+        return False
+    
+def get_slt(df):
+    print("Loading data into SLT", end=" ")
+    try:
+        # df["ASIN"].to_string()
+        with open(downloadFolder+"\\asins.txt", "w") as f:
+            f.write("\n".join(df["asin"].dropna().astype(str)))
+        
+        driver.get("https://slt-fe.corp.amazon.com/iog/1091116/bulkexport")
+        WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//input[@type='file']")))
+        
+        dropdown = driver.find_element(By.ID, "selectForExportRequestedService")
+        select = Select(dropdown)
+        select.select_by_value("PRC")
+        time.sleep(1)
+        
+        WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//input[@type='file']"))).send_keys(f"{downloadFolder}\\asins.txt")
+        
+        time.sleep(2)
+        driver.find_element(By.XPATH, "//input[@type='submit']").click()
+        print("OK")
+        return True
+    
+    except:
+        print("Failed")
+        return False
+
+def cost_data(df):
+    print("Loading data into cost portal", end=" ")
+    try:
+        cost_df = df[["manufacturer_vendor_code.value", "asin"]]
+        cost_df = cost_df.dropna()
+
+        if not cost_df.empty:
+            # fill the cost template
+            cost_template = "cost-template.xlsx"
+            wb1 = load_workbook(cost_template)
+            ws1 = wb1.active  # or wb["SheetName"]
+            
+            for row_idx, (_,value) in enumerate(cost_df.iterrows(), start=2):
+                    ws1.cell(row=row_idx, column=1, value=value["manufacturer_vendor_code.value"])
+                    ws1.cell(row=row_idx, column=2, value=value["asin"])
+                    ws1.cell(row=row_idx, column=3, value="No")
+
+            wb1.save(downloadFolder+"\\Updated_cost-template.xlsx")
+            
+            driver.get("https://prod.cost.vendors.a2z.com")
+            wait60.until(EC.visibility_of_element_located((By.XPATH, "//a[text()='Batch Cost Management']"))).click()
+            
+            wait60.until(EC.visibility_of_element_located((By.XPATH, "//button/span[1][text()='Download template']"))).click()
+            time.sleep(1)
+            
+            driver.find_element(By.XPATH, "//div[text()='Batch Cost Management Download']").click()
+            time.sleep(1)
+            
+            wait60.until(EC.visibility_of_element_located((By.XPATH, "//input"))).send_keys(f"{downloadFolder}\\Updated_cost-template.xlsx")    
+            time.sleep(3)
+            
+            WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[text()='Bulk Cost Lookup']"))
+            ).click()
+            time.sleep(2)
+            print("Ok")
+            return True
+        
+    except Exception as e:
+        print("Failed", e)
+        return False
+    
+def download_sql():
+    print("Downloading data from slt with 20 mins timeout", end=" ")
+    try:
+        # driver.find_element(By.XPATH, "//input[@aria-label='Select a Select a download format']")
+        WebDriverWait(driver, 1200, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//input[@aria-label='Select a Select a download format']")))
+        
+        script = """
+        // 1. Click input to render dropdown
+        const input = document.querySelector("input[aria-label='Select a Select a download format']");
+        input.click();  // triggers React to render options
+
+        // 2. Wait a tiny bit for options to appear
+        setTimeout(() => {
+        const option = [...document.querySelectorAll('[role="option"]')]
+            .find(o => o.textContent.trim() === 'Download as CSV');
+        
+        if (option) {
+            option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            option.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        }
+        }, 50);
+        """
+        
+        driver.execute_script(script)
+        time.sleep(2)
+        
+        down_script = """[...document.querySelectorAll('span')]
+    .find(btn => btn.textContent.trim() === 'Download Results').click();
+        """
+        f1 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+        
+        driver.execute_script(down_script)
+        # scan new downloaded file
+
+        time.sleep(2)
+
+        wt = 0
+        while wt<20:
+            wt+=1
+            time.sleep(3)
+            f2 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+            f3 = f2-f1
+            if f3:
+                f3 = f3.pop()
+                if str(f3).endswith("csv"):
+                    break
+        else:
+            print("Error in downloading the SQL data")
+            time.sleep(10)
+            return None
+        
+        df = pd.read_csv(f3)
+        df["last_status_changed_time"] = pd.to_datetime(df["last_status_changed_time"], errors='coerce')
+        minDate = pd.to_datetime(df["last_status_changed_time"].min())
+        df['last_status_changed_time']=df['last_status_changed_time'].fillna(minDate)
+        idx = df.groupby(["fnsku", "vendor_ordering_code"])["last_status_changed_time"].idxmax()
+        df = df.loc[idx]
+        print("Ok")
+        return df
+    
+    except:
+        print("Failed")
+    
+def download_slt():
+    print("Downloading data from slt with 10 mins timeout", end=" ")
+    try:
+        WebDriverWait(driver, 30, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]")))
+        
+        wt = 0
+        while wt < 60:
+            wt += 1
+            driver.refresh()
+            time.sleep(10)
+            if not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]"):
+                break
+            
+        else:
+            print("Error in slt download")
+            return None
+        
+        # get me the downloaded file
+        bt = driver.find_element(By.XPATH, "//tr[1]/td/a[contains(normalize-space(text()), 'Download')]")
+        sltzipF = last_file(bt, "zip")    
+        
+        #unzip the data
+        sltFname = unzip(sltzipF)
+        print("OK")
+        return pd.read_csv(downloadFolder+"\\"+sltFname, sep=",")
+    
+    except:
+        print("Failed")
+        return False
+    
+def download_cost():
+    print("Downloading data in cost portal", end=" ")
+    try:
+        wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Processing'] | //span[text()='Pending']")))
+        wt = 0
+        while wt<30:
+            wt += 1
+            time.sleep(5)
+            driver.refresh()
+            wait60.until(EC.visibility_of_element_located((By.TAG_NAME, "tr")))
+            time.sleep(5)
+            if not driver.find_elements(By.XPATH, "//span[text()='Processing']"):
+                break
+        else:
+            print("Waiting timeout in cost portal")
+            return None
+        
+        bt = driver.find_element(By.XPATH, "//td//a")
+        costFile = last_file(bt, "xlsx")
+        if isinstance(costFile, Path):
+            print("Ok")
+            return pd.read_excel(costFile, skiprows=1)
+    
+    except:
+        print("Failed")
+
+def last_file(bt, fileFormat):
+    # scan new downloaded file
+    f1 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+
+    bt.click()
+    time.sleep(2)
+
+    wt = 0
+    while wt<20:
+        wt+=1
+        time.sleep(3)
+        f2 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+        f3 = f2-f1
+        if f3:
+            f3 = f3.pop()
+            if str(f3).endswith(fileFormat):
+                return f3
+    else:
+        return None
+    
+def unzip(zip_path):
+    # Open and extract
+    
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        # zip_ref.extractall(extract_dir)
+        sltF = zip_ref.namelist()
+        zip_ref.extract(sltF[0], path=downloadFolder)
+    
+    return sltF[0]
+
+def dateFormat():
+    # Format the date as 'DD-Mon-YY'
+    # %d for day, %b for abbreviated month name, and %y for year without century
+    return  datetime.now().strftime('%d-%b-%y')
+
+def cb_portal():
+
+    for ct in range(0, len(df), 10):
+        
+        print(len(df)-ct, end=", ")
+        driver.get("about:blank")
+        WebDriverWait(driver, 60, poll_frequency=1).until(EC.invisibility_of_element_located((By.ID, 'asins')))
+        driver.get("https://cb-portal-fe.aka.amazon.com/home/PlanPreview/search?scopeId=AMAZON_AU")
+        WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.ID, 'asins')))\
+        .send_keys(
+        "\n".join(
+            df['asin'].iloc[ct:ct+10].dropna().astype(str)
+        )
+    )
+
+        driver.find_element(By.XPATH, "//button[text()='Search']").click()
+        WebDriverWait(driver, 60, poll_frequency=2).until(EC.visibility_of_element_located((By.CLASS_NAME, 'tab-content')))
+
+        soup = BeautifulSoup(driver.page_source, "lxml")
+        # Find all elements with class "my-class"
+        elements = soup.select(".tab-content > div:nth-child(1) > div:nth-child(1)")
+
+        for el in elements:
+            # Find all immediate child divs
+            immediate_divs = el.find("div", recursive=False)
+            e2 = immediate_divs.find_all("div", attrs={"role": "gridcell"})
+            if (len(e2)) == 3:
+                df.loc[df['asin'] == e2[0].get_text(strip=True), "IPC predictive status"] = e2[1].get_text(strip=True)
+
+            elif len(e2) :
+                if e2[5].get_text(strip=True) == vc.split("/")[1]:
+                    df.loc[df['asin'] == e2[2].get_text(strip=True), "IPC predictive status"] = e2[1].get_text(strip=True)
+                        
+
+    if df["IPC predictive status"].isna().any():
+        print("Asin info is missing, hence marked as Not_Predictive")
+        print(df[df["IPC predictive status"].isna()]["asin"].to_string(index=False))
+        
+    df["IPC predictive status"] = df["IPC predictive status"].fillna("NOT_PREDICTIVE")
+
+
+now = datetime.now()
+print(f"Current timestamp: {now}")
+
+start = time.perf_counter()
+
+missingData = False
+filenameLi = ["cost-template.xlsx", "catalog_report.xlsx"]
+
+for filename in filenameLi:
+    file_path = Path(filename)
+    if file_path.exists():
+        continue
+    else:
+        missingData = True
+        print(f"The file '{filename}' does not exist.")
+
+
+if missingData:
+    print("Insert the necessary files and then run the automation")
+    time.sleep(10)
+    quit()
+   
+ 
+# Suppress "Workbook contains no default style"
+warnings.filterwarnings(
+    "ignore",
+    message="Workbook contains no default style*",
+    category=UserWarning
+)
+
+# Suppress "Data Validation extension is not supported"
+warnings.filterwarnings(
+    "ignore",
+    message="Data Validation extension is not supported*",
+    category=UserWarning
+)
+
+thisFolder = os.getcwd()
+user_name = os.getlogin()
+downloadFolder = thisFolder + "\\download"
+os.makedirs(downloadFolder, exist_ok=True)
+
+# clear download folder
+clearDir(downloadFolder)
+
+vc = input("Enter the contributor: ")
+
+# open browser
+driver = openChrome()
+wait60 = WebDriverWait(driver, 60, poll_frequency=2)
+
+driver.get("https://selection.amazon.com/contributions-search-results/b26c2be40d1f819c1d5b5492d9524adb")
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//button[@data-test-id='search-button']/span/span")))
+time.sleep(1)
+wait60.until(EC.invisibility_of_element_located((By.XPATH, "//button[@data-test-id='search-button']/span/span")))
+time.sleep(1)
+
+driver.find_element(By.XPATH, "//span[text()='Clear all']").click()
+time.sleep(1)
+
+driver.find_element(By.TAG_NAME, "textarea").clear()
+time.sleep(1)
+driver.find_element(By.TAG_NAME, "textarea").send_keys(vc)
+time.sleep(1)
+
+driver.find_element(By.XPATH, "//button[@data-test-id='search-button']").click()
+time.sleep(1)
+
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//div[text()='contributor - mcid']")))
+time.sleep(1)
+
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Exports']"))).click()
+time.sleep(1)
+
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//div[text()='Vendor attribute changes']"))).click()
+time.sleep(1)
+
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='View export status']"))).click()
+time.sleep(1)
+
+WebDriverWait(driver, 200, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Completed']")))
+time.sleep(1)
+
+
+# scan new downloaded file
+f1 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+
+wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Result']"))).click()
+time.sleep(2)
+
+wt = 0
+while wt<20:
+    wt+=1
+    time.sleep(3)
+    f2 = set([p for p in Path(downloadFolder).iterdir() if p.is_file()])
+    f3 = f2-f1
+    if f3:
+        f3 = f3.pop()
+        if str(f3).endswith("xlsx"):
+            print("SC Data is downloaded")
+            break
+else:
+    print("Missing SC data in", downloadFolder)
+    time.sleep(10)
+    
+if f3:
+    
+    df = pd.read_excel(f3, skiprows=1)
+    df = df.dropna(subset=["item_name.value"])
+    
+    # Upload in workbench to get data
+    driver.execute_script("window.name = 'sql_data';")
+    get_sql_data(df, vc.split("/")[1])
+    
+    # Upload in slt portal
+    driver.execute_script(f"window.open('https://slt-fe.corp.amazon.com/iog/1091116/bulkexport', 'slt');")
+    driver.switch_to.window("slt")
+    get_slt(df)
+    
+    
+    # upload in cost upload
+    driver.execute_script(f"window.open('about:blank', 'cost');")
+    driver.switch_to.window("cost")    
+    cost_data(df)
+    
+    time.sleep(30)
+    # for tabName in ["sql_data", "slt", "cost"]:
+    costdf = download_cost()
+    if isinstance(costdf, pd.DataFrame):
+        costdf = costdf[["Unnamed: 1", "Cost Price"]]
+        df = df.merge(costdf, how="left", left_on="asin", right_on='Unnamed: 1')
+        df = df.drop(columns=['Unnamed: 1'])
+        # costdf.to_excel("Cost_df.xlsx", index=False)
+    
+    driver.switch_to.window('slt')
+    costdf = download_slt()
+    if isinstance(costdf, pd.DataFrame):
+        costdf = costdf[["Asin", "Procurability Status"]]
+        df = df.merge(costdf, how="left", left_on="asin", right_on='Asin')
+        df = df.drop(columns=['Asin'])
+    # costdf.to_excel("slt.xlsx", index=False)
+    
+    driver.switch_to.window('sql_data')
+    costdf = download_sql()
+    if isinstance(costdf, pd.DataFrame):
+        costdf = costdf[["fnsku", "sourceability_status"]]
+        df = df.merge(costdf, how="left", left_on="asin", right_on='fnsku')
+        df = df.drop(columns=['fnsku'])
+    
+    rename_map = {
+        "Cost Price"	: "cost_price (in AUD)",
+        "Procurability Status" : "Procurability",
+        "sourceability_status": "Sourceability",
+        "ean#1.value" : "EAN",
+        "gtin#1.value" : "GTIN",
+        "upc#1.value" : "UPC",
+        "list_price.value_with_tax" : "list_price.value_with_tax (RRP) in AUD",
+        "minimum_order_quantity.minimum#1.value" : "minimum_order_quantity.minimum.value"
+    }
+    
+    df = df.rename(columns=rename_map)
+    df["Procurability"] = df["Procurability"].replace({True: "Procurable", False: "Unprocurable"})
+    
+    
+    
+    mapping = {
+        "US" : "Unsourceable",
+        "SC" : "Sourceable"
+    }
+    
+    df['Sourceability'] = df['Sourceability'].map(mapping).fillna("Unknown")
+    df["latest_reporting_date"] = dateFormat()
+    
+    cb_portal()
+    df.to_excel("Summary.xlsx", index=False)
+    # costdf.to_excel("sql_data.xlsx", index=False)
+    
+    template_file = "catalog_report.xlsx"
+    wb = load_workbook(template_file)
+    ws = wb.active  # or wb["SheetName"]
+
+    # 1. Read template headers (assume header row = 1)
+    template_headers = {
+        cell.value: idx + 1
+        for idx, cell in enumerate(ws[1])
+        if cell.value is not None
+    }
+    
+    if "External ID" in template_headers:
+        df["External ID type"] = "EAN"
+        df = df.rename(columns={"EAN": "External ID"})
+
+    # 2. Write DataFrame values
+    start_row = 2
+
+    for df_col in df.columns:
+        if df_col in template_headers:
+            col_idx = template_headers[df_col]
+            for row_idx, value in enumerate(df[df_col], start=start_row):
+                ws.cell(row=row_idx, column=col_idx, value=value)
+    
+    # Save workbook
+    wb.save(template_file)
+    
+    
+driver.quit()
+
+end = time.perf_counter()
+duration_minutes = (end - start) / 60
+print(f"Task took {duration_minutes:.2f} minutes")
