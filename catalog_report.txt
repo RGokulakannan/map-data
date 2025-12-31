@@ -265,11 +265,11 @@ def download_slt():
         WebDriverWait(driver, 30, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]")))
         
         wt = 0
-        while wt < 60:
+        while wt < 30:
             wt += 1
             driver.refresh()
-            time.sleep(10)
-            if not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]") or \
+            time.sleep(20)
+            if not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'IN PROGRESS')]") and \
                 not driver.find_elements(By.XPATH, "//*[contains(normalize-space(text()), 'SCHEDULED')]"):
                 break
             
@@ -298,7 +298,6 @@ def download_cost():
         while wt<30:
             wt += 1
             driver.refresh()
-            wait60.until(EC.visibility_of_element_located((By.TAG_NAME, "tr")))
             time.sleep(10)
             wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Processing'] | //span[text()='Pending'] | //span[text()='Succeeded'] | //span[text()='Partially succeeded']")))
             
@@ -308,11 +307,12 @@ def download_cost():
             print("Waiting timeout in cost portal")
             return None
         
-        bt = driver.find_element(By.XPATH, "//td//a")
-        costFile = last_file(bt, "xlsx")
-        if isinstance(costFile, Path):
-            print("Ok")
-            return pd.read_excel(costFile, skiprows=1)
+        bt = driver.find_elements(By.XPATH, "//tbody/tr[1]//a")
+        if bt:
+            costFile = last_file(bt[0], "xlsx")
+            if isinstance(costFile, Path):
+                print("Ok")
+                return pd.read_excel(costFile, skiprows=1)
     
     except:
         print("Failed")
@@ -518,7 +518,7 @@ if f3:
     driver.switch_to.window("cost")    
     cost_data(df)
     
-    df[['Cost Price', 'Procurability Status', 'sourceability_status']] = ""
+    # df[['Cost Price', 'Procurability Status', 'sourceability_status']] = ""
     print(df.columns)
     
     time.sleep(30)
@@ -544,6 +544,12 @@ if f3:
         costdf = costdf[["fnsku", "sourceability_status"]]
         df = df.merge(costdf, how="left", left_on="asin", right_on='fnsku')
         df = df.drop(columns=['fnsku'])
+    
+    for dfc in ['Cost Price', 'Procurability Status', 'sourceability_status']:
+        if dfc not in df.columns:
+            df[dfc] = ""
+    
+    # df[['Cost Price', 'Procurability Status', 'sourceability_status']] = ""
     
     rename_map = {
         "Cost Price"	: "cost_price (in AUD)",
