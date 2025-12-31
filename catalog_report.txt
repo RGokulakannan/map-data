@@ -1,5 +1,3 @@
-# v1
-
 import pandas as pd, time, os
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -299,11 +297,12 @@ def download_cost():
         wt = 0
         while wt<30:
             wt += 1
-            time.sleep(5)
             driver.refresh()
             wait60.until(EC.visibility_of_element_located((By.TAG_NAME, "tr")))
-            time.sleep(5)
-            if not driver.find_elements(By.XPATH, "//span[text()='Processing']"):
+            time.sleep(10)
+            wait60.until(EC.visibility_of_element_located((By.XPATH, "//span[text()='Processing'] | //span[text()='Pending'] | //span[text()='Succeeded'] | //span[text()='Partially succeeded']")))
+            
+            if driver.find_elements(By.XPATH, "//span[text()='Partially succeeded'] | //span[text()='Succeeded']"):
                 break
         else:
             print("Waiting timeout in cost portal")
@@ -518,7 +517,9 @@ if f3:
     driver.execute_script(f"window.open('about:blank', 'cost');")
     driver.switch_to.window("cost")    
     cost_data(df)
+    
     df[['Cost Price', 'Procurability Status', 'sourceability_status']] = ""
+    print(df.columns)
     
     time.sleep(30)
     # for tabName in ["sql_data", "slt", "cost"]:
@@ -605,4 +606,3 @@ driver.quit()
 end = time.perf_counter()
 duration_minutes = (end - start) / 60
 print(f"Task took {duration_minutes:.2f} minutes")
-time.sleep(40)
