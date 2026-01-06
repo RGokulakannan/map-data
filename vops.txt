@@ -1,0 +1,58 @@
+import os
+import time
+import pandas as pd
+from tqdm import tqdm
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver import Keys
+from time import sleep
+from datetime import datetime, timedelta
+import re
+
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument("--log-level=3")  # Correct spelling
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+user_name=os.getlogin()
+
+df = pd.read_excel("input.xlsx")
+
+driver = open_chrome()
+
+for index, row in df.iterrows():
+    
+    try:
+        driver.get(f"https://vops-na.corp.amazon.com/#/search/vendorCode/{row["vc"]}")
+        gn = WebDriverWait(driver, 30, poll_frequency=2).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "body > div:nth-child(1) > div.card > div > div > div.kat-row > div:nth-child(1) > kat-list > li:nth-child(5) > span > a"))).text
+        print(gn, len(df)-index)
+        df.at[index, 'gl'] = gn
+        
+    except:
+        pass
+
+df.to_excel("Out.xlsx", index=False)
+driver.quit()
