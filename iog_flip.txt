@@ -1,3 +1,4 @@
+print("Test1")
 import win32com.client
 import os
 import time
@@ -179,7 +180,7 @@ driver.execute_script(
 time.sleep(1)
 driver.find_element(By.XPATH, "//div[text()='Submit Flip Request']").click()
 
-time.sleep(60)
+input("Is downloaded")
 driver.quit()
 
 
