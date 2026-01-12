@@ -1,0 +1,185 @@
+import win32com.client
+import os
+import time
+import zipfile
+import pandas as pd
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver import Keys
+from pathlib import Path
+
+
+def clear_folder(folder):
+    # Delete all files in the folder (non-recursive)
+    for file in folder.iterdir():
+        if file.is_file():
+            file.unlink()
+
+def wait_for_file_complete(filepath, timeout=120, check_interval=1):
+    """
+    Wait until a file exists and stops growing.
+    timeout = max seconds to wait
+    """
+    start = time.time()
+    last_size = -1
+    
+    while True:
+        if os.path.exists(filepath):
+            size = os.path.getsize(filepath)
+            if size == last_size:
+                return True  # finished writing
+            last_size = size
+        
+        if time.time() - start > timeout:
+            return False
+        
+        time.sleep(check_interval)
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{USERNAME}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument("--log-level=3");
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+USERNAME+"\\driver\\chromedriver.exe")
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+
+USERNAME = os.getlogin()
+
+download_path = os.path.abspath(r"downloads")
+os.makedirs(download_path, exist_ok=True)
+
+save_path = os.path.abspath(r"Attachments")   # folder where attachments will be saved
+os.makedirs(save_path, exist_ok=True)
+
+clear_folder(Path(download_path))
+clear_folder(Path(save_path))
+
+# Connect to Outlook
+outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+
+iog_flip_dir = outlook.Folders[0].Folders["iog_flip_ktw3"]
+
+# Get all items
+messages = iog_flip_dir.Items
+
+print(f"Total emails: {len(messages)}\n")
+
+msg_map = dict()
+
+for ct, msg in enumerate(messages, start=1):
+    try:
+        print("Mail Number", ct)
+        print("Subject:", msg.Subject)
+        print("From:", msg.SenderName)
+        print("To:", msg.To)
+        print("Received:", msg.ReceivedTime)
+        print("-" * 50)
+        msg_map.update({ct: msg})
+        
+    except Exception as e:
+        print("Error:", e)
+
+msg = int(input("Enter the message number : "))
+cleaned_string = ""
+msg = msg_map.get(msg)
+# If email has attachments
+if msg and msg.Attachments.Count > 0:
+    
+    for att in msg.Attachments:
+        att_name = att.FileName
+        print("Attachment:", att_name)
+
+        # Save the attachment
+        save_file = os.path.join(save_path, att_name)
+        att.SaveAsFile(save_file)
+        
+        # Wait until completed
+        if wait_for_file_complete(save_file):
+            print("Download completed:", save_file)
+        else:
+            print("Timeout waiting for download:", save_file)
+            
+        # unzip the file model -1
+        # with zipfile.ZipFile(save_file, 'r') as zip_ref:
+        #     zip_ref.extractall(save_path)
+        
+        extracted_files = []
+        with zipfile.ZipFile(save_file, 'r') as z:
+            for file_name in z.namelist():
+                extracted_path = z.extract(file_name, save_path)
+                extracted_files.append(extracted_path)
+
+        print("Unzipped successfully to:", extracted_files)
+        
+        # reading data from txt into pandas
+        df = pd.read_csv(extracted_files[0], sep="\t")
+        
+        print("Total rows found in attachments", df.shape[0])
+        print("Excluding IOG 82")
+        df = df[df['iog_from'] != 82][["iog_flip_template"]]
+        print("Total rows found in attachments", df.shape[0])
+        
+        big_string = df.to_string(index=False, header=False)
+        cleaned_string = "\n".join(line.strip() for line in big_string.splitlines())
+
+        # Convert to string without index and column names
+        with open("output.txt", "w") as f:
+            f.write(cleaned_string)
+            
+
+driver = open_chrome()
+time.sleep(2)
+
+driver.get("https://smartiq-workflows-eu.aka.amazon.com/#WorkflowPlace:FLIP_IOG_BATCH")
+ew = WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//tr[td[div[text()='Enter FC']]]/td[2]/input | //textarea")))
+time.sleep(3)
+# input("-- go")
+if ew.get_attribute("tagName") == "INPUT":
+    ew.send_keys("KTW3")
+    time.sleep(1)
+    ew.send_keys(Keys.ENTER)
+    
+# Use JavaScript to set the value of the input field
+driver.execute_script("arguments[0].value = arguments[1];", driver.find_element(By.TAG_NAME, "textarea"), cleaned_string)
+time.sleep(2)
+driver.find_element(By.TAG_NAME, "textarea").send_keys(" ")
+    
+driver.find_element(By.XPATH, "//div[text()='Parse Input CSV']").click()
+
+element = driver.execute_script('return document.querySelector("body > div:nth-child(6) > div:nth-child(2) > \
+                                div > div:nth-child(2) > div > div:nth-child(4) > div > div:nth-child(1) > \
+                                div:nth-child(3) > div > div:nth-child(3) > div > div:nth-child(2) > div")')
+
+# driver.execute_script("arguments[0].scroll(0, 70890);", element)
+driver.execute_script(
+    "arguments[0].scrollTop = arguments[0].scrollHeight",
+    element
+)
+
+time.sleep(1)
+driver.find_element(By.XPATH, "//div[text()='Submit Flip Request']").click()
+
+time.sleep(60)
+driver.quit()
+
+
