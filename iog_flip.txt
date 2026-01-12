@@ -166,6 +166,7 @@ time.sleep(2)
 driver.find_element(By.TAG_NAME, "textarea").send_keys(" ")
     
 driver.find_element(By.XPATH, "//div[text()='Parse Input CSV']").click()
+time.sleep(2)
 
 element = driver.execute_script('return document.querySelector("body > div:nth-child(6) > div:nth-child(2) > \
                                 div > div:nth-child(2) > div > div:nth-child(4) > div > div:nth-child(1) > \
@@ -177,9 +178,9 @@ driver.execute_script(
     element
 )
 
-time.sleep(1)
+time.sleep(2)
 driver.find_element(By.XPATH, "//div[text()='Submit Flip Request']").click()
-
+time.sleep(60)
 input("Is downloaded")
 driver.quit()
 
