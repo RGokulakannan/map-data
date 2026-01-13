@@ -1,4 +1,4 @@
-print("Test1")
+print("Test 2")
 import win32com.client
 import os
 import time
@@ -14,7 +14,27 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver import Keys
 from pathlib import Path
 
+def last_file(bt, fileFormat):
+    # scan new downloaded file
+    f1 = set([p for p in Path(download_path).iterdir() if p.is_file()])
 
+    bt.click()
+    time.sleep(2)
+
+    wt = 0
+    while wt<20:
+        wt+=1
+        time.sleep(3)
+        f2 = set([p for p in Path(download_path).iterdir() if p.is_file()])
+        f3 = f2-f1
+        if f3:
+            f3 = f3.pop()
+            if str(f3).endswith(fileFormat):
+                f3.rename(f3.with_name("KTW3_IOG_Flip_Jan09_2026_final_Output File.csv"))
+                return f3
+    else:
+        return None
+    
 def clear_folder(folder):
     # Delete all files in the folder (non-recursive)
     for file in folder.iterdir():
@@ -164,9 +184,9 @@ if ew.get_attribute("tagName") == "INPUT":
 driver.execute_script("arguments[0].value = arguments[1];", driver.find_element(By.TAG_NAME, "textarea"), cleaned_string)
 time.sleep(2)
 driver.find_element(By.TAG_NAME, "textarea").send_keys(" ")
-    
+time.sleep(1)
 driver.find_element(By.XPATH, "//div[text()='Parse Input CSV']").click()
-time.sleep(2)
+time.sleep(1)
 
 element = driver.execute_script('return document.querySelector("body > div:nth-child(6) > div:nth-child(2) > \
                                 div > div:nth-child(2) > div > div:nth-child(4) > div > div:nth-child(1) > \
@@ -178,10 +198,35 @@ driver.execute_script(
     element
 )
 
-time.sleep(2)
+time.sleep(1)
 driver.find_element(By.XPATH, "//div[text()='Submit Flip Request']").click()
+
 time.sleep(60)
-input("Is downloaded")
+
+try:
+    WebDriverWait(driver, 480, poll_frequency=2).until(EC.visibility_of_element_located((By.XPATH, "//div[text()='Export Result as CSV']")))
+    time.sleep(2)
+
+    # driver.execute_script("arguments[0].scroll(0, 70890);", element)
+    driver.execute_script(
+        "arguments[0].scrollTop = arguments[0].scrollHeight",
+        element
+    )
+    time.sleep(2)
+    bt = driver.find_element(By.XPATH, "//div[text()='Export Result as CSV']")
+
+    last_file(bt, 'csv')
+
+except Exception as e:
+    print(e)
+    input("Please download manually")
+
+# logic to detect download
+
+
+
+
+time.sleep(60)
 driver.quit()
 
 
