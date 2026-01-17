@@ -1,0 +1,123 @@
+import os
+import pandas as pd
+from time import sleep
+from tqdm import tqdm
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import openpyxl
+
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    options.add_argument("--log-level=3")
+    service = Service(rf"c:\Users\{user_name}\driver\chromedriver.exe")
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+
+user_name = os.getlogin()
+
+driver = open_chrome()
+df = pd.read_excel("bat_input.xlsx")
+df_out = pd.DataFrame(columns=["asin", "id", "error"])
+
+with tqdm(total=df.shape[0]) as pbar:
+    for taskName, group_df in df.groupby("task_name"):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Asin", "ID", "fm-id", "Color", "Error-1", "Error-2", "Error-3"])
+        
+        for index, row in group_df.iterrows():
+            try:
+                pbar.update(1)
+                # driver.get("about:blank")
+                driver.get("data:text/html,<h1>Welcome</h1>")
+                sleep(0.3)
+                driver.get(f"https://buyability-analyzer-prod.corp.amazon.com/v2/")
+                
+                WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "getOffers")))
+                WebDriverWait(driver, 60, poll_frequency=1).until(EC.visibility_of_element_located((By.ID, "domainMarketplaceRealmContainer")))
+                WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.ID, "relationshipTypeGroup")))
+                WebDriverWait(driver, 30, poll_frequency=1).until(EC.invisibility_of_element_located((By.ID, "olidGroup")))
+                
+                driver.find_element(By.ID, "mkid").clear()
+                sleep(0.2)
+                driver.find_element(By.ID, "mkid").send_keys(row["id"])
+                sleep(0.2)
+                
+                driver.find_element(By.ID, "asin").send_keys(row['asin'])
+                sleep(0.2)
+                
+                driver.find_element(By.ID, "retailMerchant").click()
+                sleep(1)
+                WebDriverWait(driver, 10, poll_frequency=1).until(EC.invisibility_of_element((By.XPATH, "//div[contains(translate(@style,' ',''),'display:block')]/div[@class='spinner']")))
+                    
+                fm_txt = driver.find_element(By.ID, "fmid")
+                
+                fm_txt.clear()
+                sleep(0.2)
+                
+                fm_txt.send_keys(row["fm_id"])
+                sleep(0.2)
+                
+                driver.find_element(By.ID, "getOffers").click()
+                sleep(5)
+                WebDriverWait(driver, 60, poll_frequency=1).until(EC.invisibility_of_element((By.XPATH, "//div[contains(translate(@style,' ',''),'display:block')]/div[@class='spinner']")))
+
+                element = driver.find_element(By.ID, "odsResults")
+                fcol = ""
+                fout = [row["asin"], row["id"], row["fm_id"]]
+                
+                od = driver.find_element(By.ID, "offerDiagnosticContainer").find_elements(By.CLASS_NAME, "alert-error")
+                # if element.find_elements(By.CLASS_NAME, "alert-warning"):
+                if od:
+                    fout.append("red")
+                    for name1 in od:
+                        fout.append(name1.text)
+                        
+                if element.find_elements(By.CLASS_NAME, "alert-success"):
+                    fout.append("green")
+                
+                ws.append(fout)
+                
+            except:
+                pass            
+        
+        column_widths = {
+        'A': 14,
+        'B': 12,
+        'C': 14,
+        'E': 40 
+        }
+
+        for col, width in column_widths.items():
+            ws.column_dimensions[col].width = width
+        
+        try:
+            wb.save(f"{taskName}_Output_bat.xlsx")
+        except:
+            print(f"{taskName}_Output_bat.xlsx already exists")
+            
+            ct = 1
+            while True:
+                try:
+                    wb.save(f"{taskName}_v{ct}_Output_bat.xlsx")
+                    break
+                except:
+                    ct += 1
+                    pass
+        
+driver.quit()
+
