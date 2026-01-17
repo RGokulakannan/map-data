@@ -1,0 +1,118 @@
+import os
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+
+user_name = os.getlogin()
+
+def cookie_management():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    service = Service(rf"c:\Users\{user_name}\driver\chromedriver.exe")
+    download_path = "C:\\Users\\"+user_name+"\\Downloads"
+    options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+    return driver
+
+
+driver = cookie_management()
+# program begins
+# 1. get my input data
+df = pd.read_excel("input.xlsx")
+
+# 2. template to store the data
+data = {
+    'PO':[],
+    'Status':[]
+}
+
+for index, row in df.iterrows():
+    
+        try:
+            driver.get("data:text/html,<h1>Welcome</h1>")
+            time.sleep(0.3)
+            driver.get(f"https://unified-portal-eu.corp.amazon.com/#/hotpo/details?orderId={df.loc[index, 'po']}")
+            time.sleep(0.5)
+            WebDriverWait(driver,120, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div/div')))
+            ts = driver.find_element(By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div').find_elements(By.TAG_NAME,'div')
+            
+            for c in ts:
+                if(c.text == 'Current Status: APPROVED'):
+                    print(df.loc[index, 'po'], 'Already approved')
+                    data['PO'].append(df.loc[index , 'po'])
+                    data['Status'].append('Already approved')
+                    break
+                
+                # clicking on approve
+                dam = c.text
+                    
+                if(dam == 'Current Status: PENDING'):
+                    driver.find_element(By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div/div/div[13]/div/textarea').send_keys(df.loc[index, 'approve comments'])
+                    bt = driver.find_element(By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div/div/div[14]').find_elements(By.TAG_NAME,'button')
+                    
+                    for d in bt:
+                        if(d.text == 'Approve'):
+                            d.click()
+                            print(df.loc[index, 'po'],'Approved')
+                            data['PO'].append(df.loc[index, 'po'])
+                            data['Status'].append("Approved")
+                            time.sleep(3)
+                    break
+                    
+                fg = c.text
+                if(fg[:45] == 'A request does not exist for the specified PO'):
+                    print(df.loc[index, 'po'],'No request')
+                    data['PO'].append(df.loc[index, 'po'])
+                    data['Status'].append('No Request')
+        except:
+            data['PO'].append(df.loc[index, 'po'])
+            data['Status'].append('error')     
+            print('Error on',df.loc[index, 'po']) 
+    
+df = pd.DataFrame(data)
+df.to_excel('output.xlsx', index=False)
+
+# df = df[df["Status"] == 'Approved']
+df1 = df[df["Status"] == 'Approved'].reset_index(drop=True)
+df1['Status'] = ""
+
+for index, row in df1.iterrows():
+    print(index, "-")
+    try:
+        driver.get("about:blank")
+        time.sleep(0.1)
+        driver.get(f"https://unified-portal-eu.corp.amazon.com/#/hotpo/details?orderId={df1.loc[index, 'PO']}")
+        time.sleep(0.1)
+        # print(df.loc[index - TAB_COUNT, 'po'], df.loc[index - TAB_COUNT, 'approve comments'] )
+        WebDriverWait(driver,120, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div/div')))
+        dam = driver.find_element(By.XPATH,'/html/body/up-app/mat-sidenav-container/mat-sidenav-content/div/div[2]/up-hotpo/div/div').find_elements(By.TAG_NAME,'div')[7].text
+        df1.loc[df1['PO'] == df1.loc[index, 'PO'], "Status"] = dam   
+        print(df1.loc[index, 'PO'], dam)    
+            
+    except:
+        df1.loc[df['PO'] == df1.loc[index, 'PO'], "Status"] = ""
+        print('Error on',df1.loc[index, 'PO'])
+    
+df1.to_excel('updatedStatus.xlsx', index=False)
+print("\n NARESH ")                    
+time.sleep(5)
+driver.quit()
