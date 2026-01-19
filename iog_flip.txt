@@ -30,7 +30,8 @@ def last_file(bt, fileFormat):
         if f3:
             f3 = f3.pop()
             if str(f3).endswith(fileFormat):
-                f3.rename(f3.with_name("KTW3_IOG_Flip_Jan09_2026_final_Output File.csv"))
+                today_str = time.strftime("%b%d_%Y")
+                f3.rename(f3.with_name(f"KTW3_IOG_Flip_{today_str}_final_Output File.csv"))
                 return f3
     else:
         return None
