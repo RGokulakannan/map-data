@@ -1,4 +1,4 @@
-print("Test 2")
+print("Test 3")
 import win32com.client
 import os
 import time
@@ -97,7 +97,14 @@ clear_folder(Path(download_path))
 clear_folder(Path(save_path))
 
 # Connect to Outlook
-outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+# outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+
+outlook_app = win32com.client.Dispatch("Outlook.Application")
+time.sleep(1)
+outlook = outlook_app.GetNamespace("MAPI")
+time.sleep(1)
+outlook.Logon()   # <-- important
+time.sleep(1)
 
 iog_flip_dir = outlook.Folders[0].Folders["iog_flip_ktw3"]
 
