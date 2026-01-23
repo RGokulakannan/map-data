@@ -1,4 +1,3 @@
-print("Test 3")
 import win32com.client
 import os
 import time
@@ -174,7 +173,10 @@ if msg and msg.Attachments.Count > 0:
         # Convert to string without index and column names
         with open("output.txt", "w") as f:
             f.write(cleaned_string)
-            
+
+
+outlook = ""
+outlook_app = ""
 
 driver = open_chrome()
 time.sleep(2)
