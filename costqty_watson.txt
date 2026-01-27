@@ -87,8 +87,10 @@ for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
         condition_text = condition_element.text.replace("Condition:", "").strip()
         df.at[index, "condition"] = condition_text
         
-        if condition_text.lower() not in ["submitted", "completelyconfirmed", "partiallyconfirmed"]:
+        condition_text = condition_text.replace(" ", "")
+        if condition_text.lower() not in ["submitted", "completelyconfirmed", "partiallyconfirmed", "partiallycancelled"]:
             continue
+
         WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Filter Rows']"))).click()
         time.sleep(0.4)
         
