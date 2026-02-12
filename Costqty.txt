@@ -74,7 +74,8 @@ df = pd.read_excel(f"PO_INPUT.xlsx")
 for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
     try:    
         # to open the url in browser
-        driver.get('about:blank')      
+        driver.get('https://midway-auth.amazon.com')
+        time.sleep(1)
         driver.get(f'https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/action/confirmPo?poId={row['po']}')
         WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'react-grid-Viewport')))
         # Get the entire h4 element
