@@ -1,0 +1,183 @@
+import time
+import pandas as pd
+
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import traceback
+from tqdm import tqdm
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.action_chains import ActionChains
+
+
+def set_chrome_options():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\rhgokula\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+
+    options = Options()
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument('--no-sandbox')
+    options.add_argument("--log-level=3")
+    options.add_argument('--disable-gpu')
+    options.add_argument("--start-maximized")
+    # options.add_argument("--disable-infobars")
+    options.add_argument('--disable-dev-shm-usage')
+    # options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    return options
+
+
+try:
+        
+    df = pd.read_excel("input.xlsx")
+    df['status'] = None
+    options = set_chrome_options()
+
+    STEPS = 50
+    TEXT = """The goods inside this order to be returned/liquidated as per previous vendor agreements or recent liquidation agreements for increasing the optimal inventory health. Orders prepared with the guidance of Retail Teams (ISM/VM)."""
+    
+    with webdriver.Chrome(options=options) as driver:
+
+        for rowC in tqdm(range(0, len(df), STEPS), total=df.shape[0]/STEPS, desc="Orders"):
+            
+            chunk = df['order'].iloc[ rowC:rowC + STEPS ].astype(str).tolist()
+            # .iloc[start:end] → end is exclusive
+            # .loc[start:end] → end is inclusive
+            chunk = " ".join(chunk)
+
+            ct = 0
+            while True and ct < 15:
+                    ct = ct+1
+                # try:
+                    driver.get("data:text/html,<h1>Welcome</h1>")
+
+                    driver.get("https://removals-central-eu.removal.scot.amazon.dev/search")
+                    WebDriverWait(driver, 120, poll_frequency=2).until(EC.visibility_of_element_located((By.ID, "queryKeyword")))
+
+                    time.sleep(1)
+                    driver.find_element(By.ID, "queryKeyword").send_keys(chunk)
+                    time.sleep(1)
+                    driver.find_element(By.XPATH, "//form/button[text()='Go']").click()
+
+                    try:
+                        WebDriverWait(driver, 120).until(
+                                                        lambda d: d.find_element(By.ID, "async_task_id").text.strip() 
+                                                        )
+                        
+                        WebDriverWait(driver, 120).until(
+                                                        lambda d: d.find_element(By.ID, "async_task_state")
+                                                                    .text.strip() in ("FAILED", "")  )
+                                                                    
+                        if driver.find_element(By.ID, "async_task_state").text.strip() == "FAILED":
+                            continue
+                        else:
+                            break
+                    except:
+                        driver.save_screenshot(f"error-{ct}.png")
+                    
+            # loop until error gone
+
+            wait = WebDriverWait(driver, 120, poll_frequency=2)
+
+            wait.until(
+                lambda d: (
+                    d.find_elements(By.ID, "search_no_result_container") or
+                    d.find_elements(By.ID, "result_contents_area")
+                )
+            )
+
+            deleteUrl = driver.current_url
+            
+            if driver.find_elements(By.ID, "search_no_result_container"):
+                df.loc[rowC:rowC + STEPS - 1, 'status'] = "No orders found"
+
+            if driver.find_elements(By.ID, "result_contents_area"):
+
+                ct = 0
+                while True and ct < 15:
+                    ct += 1
+                
+                    driver.get("data:text/html,<h1>Welcome</h1>")
+                    driver.get(deleteUrl)
+                    wait = WebDriverWait(driver, 120, poll_frequency=2)
+
+                    xpath = "//a[normalize-space()='ALL-PAGES'] | //a[normalize-space()='THIS-PAGE']"
+
+                    # Get all visible elements matching the XPath
+                    elements = wait.until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
+
+                    # Prefer "ALL-PAGES"
+                    clicked = False
+                    for el in elements:
+                        if el.is_displayed() and el.text.strip() == "ALL-PAGES":
+                            el.click()
+                            time.sleep(1)
+                            driver.find_element(By.XPATH, "//div[@id='operationAllPageButtonContainer']/button[text()='Confirm']").click()
+                            clicked = True
+                            break
+
+                    # If no ALL-PAGES, click THIS-PAGE
+                    if not clicked:
+                        for el in elements:
+                            if el.is_displayed() and el.text.strip() == "THIS-PAGE":
+                                el.click()
+                                break
+                            
+                    time.sleep(2)
+                    WebDriverWait(driver, 120, poll_frequency=3).until(EC.visibility_of_element_located((
+                                    By.XPATH,
+                                    "//button[.//span[contains(normalize-space(), 'User Operations')]]"
+                                ))).click()
+                    
+                    time.sleep(2)
+                    driver.find_element( By.XPATH, 
+                "//a[normalize-space()='Delete/Cancel Orders']"
+            ).click()
+                    
+                    time.sleep(2)
+                    select_element = driver.find_element(By.ID, "deleteOperationReasonSelector")
+                    dropdown = Select(select_element)
+                    dropdown.select_by_value("Other")
+                    
+                    time.sleep(2)
+                    input_box = driver.find_element(By.ID, "operationReasonDetailsText")
+                    
+                    actions = ActionChains(driver)
+                    actions.move_to_element(input_box).click().perform()
+
+                    time.sleep(1)
+                    input_box.send_keys(TEXT)
+
+                    time.sleep(3)
+                    driver.find_element(By.ID, "operationConfirmButton").click()
+
+                    WebDriverWait(driver, 120, poll_frequency=1).until(EC.visibility_of_element_located
+                                                                    ((By.XPATH, "//div[@id='delete_order_result_container']/ul | //div[@id='delete_order_result_container']/div")))
+
+                    if driver.find_elements(By.XPATH, "//div[@id='delete_order_result_container']/ul"):
+                        df.loc[rowC:rowC + STEPS - 1, 'status'] = driver.current_url
+                        break
+                    
+
+except Exception as e:
+    
+    # print("Error:", e)
+    # traceback.print_exc()
+
+    # Capture traceback as string
+    error_text = traceback.format_exc()
+    
+    # Write to a text file
+    with open("error_log.txt", "w") as f:
+        f.write(error_text)
+
+    print("Traceback saved to error_log.txt")
+
+    driver.save_screenshot("Error.png")
+    driver.quit()
+
+finally:
+    df.to_excel("OutputFinal.xlsx", index=False)
