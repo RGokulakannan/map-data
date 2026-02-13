@@ -1,0 +1,73 @@
+import time
+import pandas as pd
+
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import traceback
+from tqdm import tqdm
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.action_chains import ActionChains
+
+# lis = [
+#     "https://www.temu.com/goods.html?goods_id=601099808374736",
+#     "https://www.temu.com/goods.html?goods_id=601099814477640",
+#     "https://www.temu.com/goods.html?goods_id=601099823068669",
+#     "https://www.temu.com/goods.html?goods_id=601099830039578",
+#     "https://www.temu.com/goods.html?goods_id=601099836608983",
+#     "https://www.temu.com/goods.html?goods_id=601099843840014",
+#     "https://www.temu.com/goods.html?goods_id=601099867187306"
+
+# ]
+
+df = pd.read_excel("input.xlsx")
+
+xpaths = [
+    "//div[text()='This item is sold out. View more details']",
+    "//span[text()='Add to cart']",
+    "//div[text()='This item is sold out.']",
+    "//div[text()='Unavailable for purchase']"
+]
+
+def set_chrome_options():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\rhgokula\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+
+    options = Options()
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument(f'user-data-dir={profile_path}')
+    # options.add_argument('--no-sandbox')
+    # options.add_argument("--log-level=3")
+    # options.add_argument('--disable-gpu')
+    options.add_argument("--start-maximized")
+    # options.add_argument("--disable-infobars")
+    # options.add_argument('--disable-dev-shm-usage')
+    # options.add_argument("--disable-blink-features=AutomationControlled")
+    # options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    return options
+
+
+options = set_chrome_options()
+
+with webdriver.Chrome(options=options) as driver:
+    time.sleep(1)
+
+    driver.get("https://www.temu.com")
+    input("Login ? ")
+    for index, row in tqdm(df.iterrows(), desc="Product", total=df.shape[0]):
+        # driver.get("chrome://newtab")
+        driver.get("about:blank")
+        time.sleep(0.6)
+        driver.get(row['product'])
+
+        combined_xpath = " | ".join(xpaths)
+
+        element = WebDriverWait(driver, 60, poll_frequency=2).until(
+            EC.visibility_of_element_located((By.XPATH, combined_xpath))
+        )
+
+        df.at[index, 'status'] = element.text
+
+df.to_excel("Output.xlsx", index=False)
