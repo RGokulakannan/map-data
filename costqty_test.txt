@@ -53,7 +53,7 @@ rn_map = {
 
 driver = open_chrome()
 df = pd.read_excel(f"PO_INPUT.xlsx")
-driver.get("")
+driver.get("https://midway-auth.amazon.com/")
 input("logged in")
 # looping over given PO
 for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
