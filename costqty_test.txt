@@ -7,7 +7,7 @@ quantity and Cost update asin_po wise
 1. ++ updating ack code
 
 """
-
+print("Test 1")
 
 import os
 import time
