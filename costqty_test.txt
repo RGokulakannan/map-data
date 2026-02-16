@@ -1,0 +1,134 @@
+"""
+Ramalingam, Sruthilaya _sruthil
+Saha Ghosh, Sahelee _sasahele
+
+quantity and Cost update asin_po wise
+
+1. ++ updating ack code
+
+"""
+
+
+import os
+import time
+import pandas as pd
+import sys
+
+from tqdm import tqdm
+
+from selenium import webdriver
+from selenium.webdriver import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+
+user_name = os.getlogin()
+startTime = time.time()
+
+def open_chrome():
+    driver = webdriver.Firefox()
+    return driver
+
+
+
+rn = input("""1. na
+2. fe
+3. eu
+Choose the region by number input: """)
+
+
+if rn not in ["1", "2", "3"]:
+    print("Invalid Selection")
+    time.sleep(10)
+    sys.exit()
+    
+rn_map = {
+    "1" : "na",
+    "2":"fe",
+    "3":"eu"
+}
+
+driver = open_chrome()
+df = pd.read_excel(f"PO_INPUT.xlsx")
+driver.get("")
+input("logged in")
+# looping over given PO
+for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
+    try:    
+        # to open the url in browser
+        html = "<html><body><h4>welcome</h4></body></html>"
+        driver.get("data:text/html;charset=utf-8," + html)
+        
+        driver.get(f'https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/action/confirmPo?poId={row['po']}')
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'react-grid-Viewport')))
+        # Get the entire h4 element
+        condition_element = driver.find_element(By.XPATH, "//h4[b[contains(., 'Condition:')]]")
+        # Extract the text, remove the label, and strip whitespace
+        condition_text = condition_element.text.replace("Condition:", "").strip()
+        df.at[index, "condition"] = condition_text
+        
+        condition_text = condition_text.replace(" ", "")
+
+        if condition_text.lower() not in ["submitted", "completelyconfirmed", "partiallyconfirmed", "partiallycancelled"]:
+            continue
+        
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Filter Rows']"))).click()
+        time.sleep(0.4)
+        
+        driver.find_element(By.XPATH,'//div/div/div/div/div[1]/div[2]/div/div[1]/div[1]/div/div').click()
+        driver.find_element(By.XPATH,'//div[1]/div[1]/div/div/div[2]/input').send_keys(str(row['asin']) +'\n')
+        
+        time.sleep(0.4)
+                
+        li = driver.find_element(By.CLASS_NAME,'react-grid-Viewport').find_elements(By.TAG_NAME,'span')
+        
+        if (len(li)>0 and len(li)<15):
+            
+            try:
+                
+                # update the ack code
+                df.at[index, "ack_code"] = li[3].text                
+                action = ActionChains(driver)
+                action.double_click(li[3]).perform()
+                time.sleep(0.2)
+                driver.find_element(By.XPATH, "//button[starts-with(normalize-space(text()), 'AC:')]").click()
+                time.sleep(0.5)
+
+                # handle the qty
+                if not pd.isna(row["quantity"]):
+                    df.at[index, "pre_qty"] = li[6].text
+                    action = ActionChains(driver)
+                    action.double_click(li[6]).send_keys(row["quantity"]).send_keys(Keys.ENTER).perform()
+                    time.sleep(0.2)
+                    df.at[index, "is_qty_updated"] = "Yes"
+                    
+                    
+                if not pd.isna(row["cost"]):
+                    df.at[index, "pre_cost"] = li[13].text
+                    action = ActionChains(driver)
+                    action.double_click(li[13]).send_keys(row["cost"]).send_keys(Keys.ENTER).perform()
+                    time.sleep(0.2)
+                    df.at[index, "is_cost_updated"] = "Yes"
+                        
+                WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'BottomButton-Submit'))).click()
+                WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'POLE task launched! View status in')]")))
+
+            except Exception as e:
+                pass
+            
+    except Exception as e:
+        pass    
+
+driver.quit()        
+
+df.to_excel(f"PO_Output.xlsx",index=False)     
+
+endTime = time.time()
+
+print("Operational Completed")
+print("Time Taken :", round((endTime-startTime)/60, 2), 'mins')
+
+time.sleep(10)
