@@ -55,7 +55,9 @@ list_data = ["createdByName", "createdByEmailId", "updatedByName", "updatedByEma
 
 df = pd.read_excel("input.xlsx")
 
-for index, row in df.iterrows():
+# for index, row in df.iterrows():
+for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Task Completed"):
+
 
     url = "https://fe.winston.a2z.com/wws_api/v1/entities/search"
 
