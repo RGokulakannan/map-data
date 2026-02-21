@@ -1,0 +1,177 @@
+print("Durga test 1")
+import requests
+import urllib3
+import browser_cookie3
+import json
+from datetime import datetime
+import requests
+import urllib3
+import json
+import pandas as pd
+from bs4 import BeautifulSoup
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+
+def format_text_html(html_content):
+
+    soup = BeautifulSoup(html_content, "html.parser")
+    return soup.get_text(separator="\n", strip=True)
+
+def format_dates(date_time):
+
+    """Formate the input int into proper date and time"""
+    # Timestamp in milliseconds (common in JavaScript/APIs)
+    # timestamp_ms = 1771618417438
+    if not date_time % 1 != 0:
+        # Convert milliseconds to seconds
+        timestamp_s = date_time / 1000
+    else:
+        timestamp_s = date_time
+
+    # Convert to datetime object
+    dt = datetime.fromtimestamp(timestamp_s)
+    # Various formatting options
+    return dt.strftime('%Y-%m-%d %H:%M:%S')  # Standard format
+
+# Get cookies
+cookie = browser_cookie3.firefox()
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+headers = {
+    "Content-Type": "application/json",
+    "Accept": "*/*",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "same-origin",
+    "Sec-Fetch-Site": "same-origin",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+    "x-amzn-winston-tenant-id": "WinstonAU",
+    "xsrftoken": "null"
+}
+
+list_data = ["createdByName", "createdByEmailId", "updatedByName", "updatedByEmailId", 
+            "activity", "createdBy", "createdDate", "updatedBy", "updatedDate"]
+
+df = pd.read_excel("input.xlsx")
+
+for index, row in df.iterrows():
+
+    url = "https://fe.winston.a2z.com/wws_api/v1/entities/search"
+
+    # Properly structured payload - parse the JSON string first
+    payload = {
+        "query": json.dumps({
+            "criteria": {
+                "criteriaList": [{
+                    "type": "ComparisonExpression",
+                    "value": str(row["task_id"]),
+                    "fieldName": "taskCounter",
+                    "expressionRelation": "EQUALS"
+                }],
+                "type": "AndCriteria"
+            },
+            "aggregates": [],
+            "ordering": None,
+            "page": {
+                "from": 0,
+                "size": 50
+            }
+        }),
+        "entityType": "task"
+    }
+
+
+
+    try:
+        # Use json= instead of data= to properly serialize
+        response = requests.post(
+            url,
+            json=payload,  # Changed from data=payload
+            verify=False,
+            timeout=10,
+            cookies=cookie,
+            headers=headers
+        )
+
+        response.raise_for_status()
+        user_info = response.json()
+
+        # print(json.dumps(user_info, indent=2))
+        # user_data = json.dumps(user_info)
+
+        user_data = user_info.get("esQueryResult", None)
+        if user_data:
+            result_data = []
+            user_data = json.loads(user_data)
+            user_data = user_data.get("hits")
+            for a in list_data:
+                result_data.append(user_data[0].get(a, None))
+
+            result_data[6] = format_dates(result_data[6])
+            result_data[8] = format_dates(result_data[8])
+
+            task_id = user_data[0].get("taskID", None)
+            if task_id:
+                url = f"https://fe.winston.a2z.com/wws_api/v1/entity/{task_id}/comment"
+
+                # Use json= instead of data= to properly serialize
+                response = requests.get(
+                    url,
+                    verify=False,
+                    timeout=10,
+                    cookies=cookie,
+                    headers=headers
+                )
+
+                response.raise_for_status()
+                user_info = response.json()
+                # print(user_info)
+
+                result_comt = []
+
+                all_cmt = user_info.get("comments", None)
+                update_cmt = 0
+
+                for cmt in all_cmt:
+                    
+                    if update_cmt < cmt.get("updatedDate", None): 
+                        update_cmt = cmt.get("updatedDate", None)
+                
+                for cmt in all_cmt:
+
+                    if cmt.get("updatedDate", None) == update_cmt:
+                        result_data.append(format_dates(update_cmt))
+                        result_data.append(format_text_html(cmt.get("value", None)))
+                        result_data.append(cmt.get("createdBy", None))
+
+        else:
+            result_data = [] * 11
+        df.loc[index, list_data + ['commentDate', 'Comment', 'CommentedBy']] = result_data
+
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+        print(f"Response text: {response.text if 'response' in locals() else 'No response'}")
+        pass
+
+df.to_excel("Output.xlsx", index=False)
+
+# Open Excel to set hyperlinks in column A
+wb = load_workbook("Output.xlsx")
+ws = wb.active
+
+col_idx = 1  # Column A
+
+for row in range(2, ws.max_row + 1):  # skip header
+    cell = ws.cell(row=row, column=col_idx)
+    display_text = cell.value
+    cell.hyperlink = "https://fe.winston.a2z.com/AU/task/" + str(display_text)
+    cell.style = "Hyperlink"
+
+# # Columns A (1) to M (13)
+# for col_idx in range(1, 14):  # 1 to 13
+#     col_letter = get_column_letter(col_idx)
+#     ws.column_dimensions[col_letter].width = 16  # Set width to 16 points
+
+wb.save("Output.xlsx")
