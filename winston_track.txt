@@ -11,7 +11,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-
+from tqdm import tqdm
 
 def format_text_html(html_content):
 
