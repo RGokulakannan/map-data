@@ -1,0 +1,153 @@
+
+import re
+import time
+import pandas as pd
+from pathlib import Path
+from time import sleep
+from openpyxl import Workbook
+from tqdm import tqdm
+
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import traceback
+from tqdm import tqdm
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.action_chains import ActionChains
+
+
+def set_chrome_options():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\rhgokula\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+
+    options = Options()
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument('--no-sandbox')
+    options.add_argument("--log-level=3")
+    options.add_argument('--disable-gpu')
+    options.add_argument("--disable-session-crashed-bubble")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+    # options.add_argument("--window-size=1920,1080") # Set window size
+    # options.add_argument("--window-position=0,0")   # Set window position (X,Y)
+    options.add_argument("--start-maximized")
+    # options.add_argument("--disable-infobars")
+    options.add_argument('--disable-dev-shm-usage')
+    # options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_experimental_option("prefs", {
+        "download.default_directory": str(DOWNLOAD_PATH),
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    return options
+    
+
+# prepare the folder
+DOWNLOAD_PATH = Path("downloads").resolve()
+DOWNLOAD_PATH.mkdir(parents=True, exist_ok=True)
+
+# clean up folder
+for item in DOWNLOAD_PATH.iterdir():
+    if item.is_file() or item.is_symlink():
+        item.unlink()
+
+try:
+    df = pd.read_excel("input.xlsx")
+    options = set_chrome_options()
+    ambiguity = ""
+    with webdriver.Chrome(options=options) as driver:
+        driver.set_window_size(1920, 1080) # set size
+        driver.set_window_position(0, 0)   # top-left corner
+        wait80 = WebDriverWait(driver, 80, poll_frequency=1)
+
+        driver.get("https://eu.forecasting-portal.scot.amazon.dev")
+        wait80.until(EC.visibility_of_element_located((By.ID, "sc-navbar-container")))
+
+        for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Task"):
+            driver.get(f"https://eu.winston.a2z.com/EU/task/{row['task']}")
+            wait80.until(EC.visibility_of_element_located((By.TAG_NAME, "awsui-spinner")))
+            wait80.until(EC.invisibility_of_element_located((By.TAG_NAME, "awsui-spinner")))
+            # time.sleep(10)
+            wait80.until(
+            lambda d: len(d.find_element(By.ID, "winston-body").text) > 100
+            )
+            bodyText=wait80.until(EC.visibility_of_element_located((By.ID, "winston-body"))).text
+
+            pattern = r'bulkUploadHarmony_\d{13}(?!\d)'
+            # Find all matches
+            matches = re.findall(pattern, bodyText)
+            if len(matches) > 1:
+                ambiguity = ambiguity + '\n' + str(row['task']) + str(" contains more than 1 match")
+                continue
+            for match in matches:
+                driver.get(f"https://eu.forecasting-portal.scot.amazon.dev/overrides/batch/{match}")
+                wait80.until(EC.visibility_of_element_located((By.XPATH, "//button[.//span[normalize-space()='Download']]")))
+                sleep(1)
+                driver.find_element(By.XPATH, "//button[.//span[normalize-space()='Download']]").click()
+                sleep(2)
+
+        sleep(5)
+
+        total_sum = 0
+        wb = Workbook()
+        ws = wb.active
+        last_col = 0
+
+        for file in DOWNLOAD_PATH.iterdir():
+            if file.is_file():
+                df=pd.read_csv(file, sep="\t")
+                # Normalize all column names to lowercase
+                df.columns = df.columns.str.lower()
+                if len(df.columns) > last_col:
+                    last_col =  len(df.columns)
+                df = df[df["quantile"]==90]
+                # Columns to exclude
+                exclude_cols = ["asin", "reason", "quantile", "fcstgroupid"]
+                # Sum of remaining columns
+                sum_remaining = df.drop(columns=exclude_cols).sum().sum()
+                total_sum += sum_remaining
+
+                for row in df.itertuples(index=False):
+                    ws.append(row)
+        
+        print("Total sum", total_sum)        
+
+        for row in ws.iter_rows():
+            # Extract cell values for the row (skip empty cells)
+            cell = [cell for cell in row if cell.value is not None]
+
+            if cell:
+                last_val = cell[-1].value
+                cell[-1].value = None
+                # Write last_val into 10th cell (column J) of current row
+                ws.cell(row=row[0].row, column=last_col+1, value=last_val)
+
+        # Insert a new column at position 4
+        ws.insert_cols(4)  # shifts existing columns 4,5,... to the right
+
+        wb.save(f"sum_{total_sum}.xlsx")
+
+        
+except Exception as e:
+    
+    # print("Error:", e)
+    # traceback.print_exc()
+    # Capture traceback as string
+    error_text = traceback.format_exc()
+    # Write to a text file
+    with open("error_log.txt", "w") as f:
+        f.write(error_text)
+
+    print("Traceback saved to error_log.txt")
+
+finally:
+    # df.to_excel("OutputFinal.xlsx", index=False)
+    # pass
+    if ambiguity:
+        with open("ambiguity.txt", mode='w') as f:
+            f.write(ambiguity)
