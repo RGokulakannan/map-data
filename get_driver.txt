@@ -14,6 +14,7 @@ from selenium.webdriver.chrome.options import Options
 # --------------------------------------------------
 # DRIVER_DIR = Path.cwd() / "drivers"
 DRIVER_DIR = Path.home() / "driver"
+DRIVER_DIR.mkdir(parents=True, exist_ok=True)   # Create directory if it doesn't exist
 DRIVER_DIR.mkdir(exist_ok=True)
 
 # --------------------------------------------------
