@@ -1,0 +1,169 @@
+import os
+import struct
+import zipfile
+import requests
+import winreg
+import subprocess
+from pathlib import Path
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+
+# --------------------------------------------------
+# CONFIG
+# --------------------------------------------------
+# DRIVER_DIR = Path.cwd() / "drivers"
+DRIVER_DIR = Path.home() / "driver"
+DRIVER_DIR.mkdir(exist_ok=True)
+
+# --------------------------------------------------
+# 1️⃣ Get Chrome Version
+# --------------------------------------------------
+def get_chrome_version():
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                             r"Software\Google\Chrome\BLBeacon")
+        version, _ = winreg.QueryValueEx(key, "version")
+        winreg.CloseKey(key)
+        return version
+    except Exception:
+        return None
+
+# --------------------------------------------------
+# 2️⃣ Detect Bitness from chrome.exe
+# --------------------------------------------------
+def get_chrome_bitness():
+    paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+    ]
+
+    for path in paths:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                if f.read(2) != b'MZ':
+                    continue
+                f.seek(0x3C)
+                pe_offset = struct.unpack('<I', f.read(4))[0]
+                f.seek(pe_offset + 4)
+                machine = struct.unpack('<H', f.read(2))[0]
+
+            if machine == 0x8664:
+                return "win64"
+            elif machine == 0x014C:
+                return "win32"
+
+    return "win64"
+
+# --------------------------------------------------
+# 3️⃣ Get Correct ChromeDriver URL
+# --------------------------------------------------
+def get_chromedriver_url(version, platform):
+    major = version.split(".")[0]
+
+    if int(major) >= 115:
+        api_url = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
+        data = requests.get(api_url, timeout=15).json()
+
+        for entry in reversed(data["versions"]):
+            if entry["version"].startswith(f"{major}."):
+                for d in entry["downloads"]["chromedriver"]:
+                    if d["platform"] == platform:
+                        return d["url"], entry["version"]
+    else:
+        platform = "win32"
+        latest = requests.get(
+            f"https://chromedriver.storage.googleapis.com/LATEST_RELEASE_{major}",
+            timeout=10
+        ).text.strip()
+        url = f"https://chromedriver.storage.googleapis.com/{latest}/chromedriver_win32.zip"
+        return url, latest
+
+    return None, None
+
+# --------------------------------------------------
+# 4️⃣ Download & Extract
+# --------------------------------------------------
+def download_driver(url):
+    zip_path = DRIVER_DIR / "chromedriver.zip"
+
+    response = requests.get(url, stream=True)
+    with open(zip_path, "wb") as f:
+        for chunk in response.iter_content(8192):
+            f.write(chunk)
+
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        for name in z.namelist():
+            if name.endswith("chromedriver.exe"):
+                z.extract(name, DRIVER_DIR)
+                extracted = DRIVER_DIR / name
+                final_path = DRIVER_DIR / "chromedriver.exe"
+                os.replace(extracted, final_path)
+                break
+
+    zip_path.unlink()
+    return DRIVER_DIR / "chromedriver.exe"
+
+# --------------------------------------------------
+# 5️⃣ Add to Windows PATH (Persistent)
+# --------------------------------------------------
+def add_to_path(directory):
+    directory = str(directory)
+
+    current = os.environ.get("PATH", "")
+    if directory in current:
+        return
+
+    subprocess.run(
+        f'setx PATH "%PATH%;{directory}"',
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+# --------------------------------------------------
+# 6️⃣ Ensure Driver Installed
+# --------------------------------------------------
+def ensure_driver():
+    driver_path = DRIVER_DIR / "chromedriver.exe"
+
+    if driver_path.exists():
+        return driver_path
+
+    version = get_chrome_version()
+    if not version:
+        raise RuntimeError("Chrome not detected.")
+
+    platform = get_chrome_bitness()
+    url, matched = get_chromedriver_url(version, platform)
+
+    if not url:
+        raise RuntimeError("No matching ChromeDriver found.")
+
+    print(f"Downloading ChromeDriver {matched}...")
+    driver_path = download_driver(url)
+
+    add_to_path(DRIVER_DIR)
+    return driver_path
+
+# --------------------------------------------------
+# 7️⃣ Selenium Ready Wrapper
+# --------------------------------------------------
+def get_chrome_driver(headless=False):
+    driver_path = ensure_driver()
+
+    options = Options()
+    if headless:
+        options.add_argument("--headless=new")
+
+    service = Service(str(driver_path))
+    return webdriver.Chrome(service=service, options=options)
+
+# --------------------------------------------------
+# Example Usage
+# --------------------------------------------------
+if __name__ == "__main__":
+    driver = get_chrome_driver(headless=False)
+    driver.get("https://www.google.com")
+    print(driver.title)
+    driver.quit()
