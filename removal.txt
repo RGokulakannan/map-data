@@ -1,5 +1,4 @@
-"v5"
-
+"v6"
 import os
 import time
 import glob
@@ -47,10 +46,10 @@ def open_chrome():
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
-def split_df(max_cost, max_qty, max_asin):
+def split_df(max_cost, max_qty, max_row):
     max_cost = int(max_cost)
     max_qty = int(max_qty)
-    max_asin = int(max_asin)
+    max_row = int(max_row)
 
     df = pd.read_excel("input_split.xlsx")
 
@@ -61,43 +60,37 @@ def split_df(max_cost, max_qty, max_asin):
     splits = []
     start = len(df)
 
-    current_products = set()
     current_cost = 0
     current_qty = 0
 
     # Loop backwards
     for i in range(len(df) - 1, -1, -1):
-        p = products[i]
         q = qtys[i]
         c = costs[i] * q
 
         # Remove invalid rows
         if q > max_qty:
-            print(p, f"in row number {i + 2} has higher quantity")
+            print(products[i], f"in row number {i + 2} has higher quantity")
             df.drop(index=i, inplace=True)
             continue
 
         if c > max_cost:
-            print(p, f"in row number {i + 2} has higher cost price")
+            print(products[i], f"in row number {i + 2} has higher cost price")
             df.drop(index=i, inplace=True)
             continue
 
-        new_product_count = len(current_products | {p})
-
         # Check limits
         if (
-            new_product_count > max_asin
+            start - i > max_row
             or current_cost + c > max_cost
             or current_qty + q > max_qty
         ):
             splits.append(df.iloc[i + 1:start])
             start = i + 1
 
-            current_products.clear()
             current_cost = 0
             current_qty = 0
 
-        current_products.add(p)
         current_cost += c
         current_qty += q
 
@@ -291,7 +284,7 @@ input_box2 = tk.Entry(root, width=20)
 input_box2.pack(pady=(0, 10))
 
 # Input total asin
-input_label3 = tk.Label(root, text="Enter the Total asin per file")
+input_label3 = tk.Label(root, text="Enter the Total number of rows per file")
 input_label3.pack(pady=(10, 0))
 input_box3 = tk.Entry(root, width=20)
 input_box3.pack(pady=(0, 10))
