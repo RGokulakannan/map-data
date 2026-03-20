@@ -272,7 +272,7 @@ root.title("Removals Portal Welcomes You")
 root.geometry("350x450")
 
 # Input total cost
-input_label1 = tk.Label(root, text="Enter the Total Cost per file")
+input_label1 = tk.Label(root, text="Enter the Total Cost (Quantity x Cost per unit) per file")
 input_label1.pack(pady=(10, 0))
 input_box1 = tk.Entry(root, width=20)
 input_box1.pack(pady=(0, 10))
