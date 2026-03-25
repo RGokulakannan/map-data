@@ -1,0 +1,433 @@
+import os
+import csv
+import time
+from argparse import OPTIONAL
+import docx2txt
+import pandas as pd
+import datetime
+import xlsxwriter
+from requests_kerberos import HTTPKerberosAuth
+from selenium import webdriver
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+
+kerberos_auth = HTTPKerberosAuth(mutual_authentication=OPTIONAL)
+user = os.getlogin()
+location = 'C:\\Users\\'+user+'\\Desktop\\Paragon\\'
+
+region_code = str(input("""Please input the region you want to initate the vendor mail for 
+                        press 1 for NA
+                        press 2 for EU
+                        press 3 for FE """))
+paragon_status = str(input("""Please input the case status of paragon  
+                        press 1 for Resolved 
+                        press 2 for Pending Merchant action (PMA)"""))
+
+
+def write_excel(data_list):
+    list_data = list(data_list.values())
+    if len(list_data) != 0:
+        # print('writing excel')
+        f = open(location + 'output.csv', 'a', newline='', encoding="utf-8")
+        writer = csv.writer(f)
+        print(list_data)
+        writer.writerow(list_data)
+
+
+# global xuser
+# xuser = getpass.getuser()
+
+def cookie_management():
+    s = Service('C:\\Users\\' + user + '\\driver\\chromedriver.exe')
+    profile_name = 'Default'
+    profile_path = 'C:\\Users\\'+user+'\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    profile = profile_name
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument(f'user-data-dir={profile_path}')
+    chrome_options.add_argument(f'--profile-directory={profile}')
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    driver = webdriver.Chrome(service=s, options=chrome_options)
+    return driver
+
+browser = cookie_management()
+
+def scip(vc):
+    d = []
+    primary = False
+    to_email_type = ''
+    # primary_email = []
+    cc_email_list = []
+    to_email = ''
+
+    # if 1 == 1:
+    try:
+        cnt_list = ['Primary Account Rep', 'Direct Buying', 'Supply Chain Operations', 'Warehouse']
+        browser.get(f'https://scip.corp.amazon.com/contacts/vendorcode/{str(vc)}')
+        WebDriverWait(browser, 60).until(EC.presence_of_element_located((By.XPATH,'/html/body/div/div[2]/kat-tabs/kat-tab[1]/div[2]/kat-data-table/table/tbody')))
+        time.sleep(5)
+        src = browser.page_source
+        soup = BeautifulSoup(browser.page_source, 'lxml')
+        table = soup.find("table", {'aria-labelledby': 'katal-id-0'})
+        table_body = table.find("tbody")
+        trs = table_body.find_all("tr")
+
+        if "Primary Account Rep" in str(trs):
+            primary = True
+            to_email_type = 'Primary Account Rep'
+        elif "Direct Buying" in str(trs):
+            to_email_type = 'Direct Buying'
+        elif "Supply Chain Operations" in str(trs):
+            to_email_type = "Supply Chain Operations"
+        elif "Warehouse" in str(trs):
+            to_email_type = "Warehouse"
+
+        for tr in trs:
+            if any(cnt in str(tr) for cnt in cnt_list):
+                tds = tr.find_all("td")
+                index = 1
+                for td in tds:
+                    if index == 1:
+                        type = str(td).partition("<h5>")[2].partition("</h5>")[0]
+                    if index == 3:
+                        if type == to_email_type and to_email == '':
+                            to_email = str(td).partition("<br/>")[2].partition("</td>")[0]
+                            if "@amazon" in to_email : to_email = ""
+                        else:
+                            em = str(td).partition("<br/>")[2].partition("</td>")[0]
+                            if em not in cc_email_list:
+                                if "@amazon" not in em : cc_email_list.extend([em])
+                    index = index + 1
+
+    except Exception:
+        print("Exception occurred while fetching contacts from SCIP")
+        return "Exception occurred while fetching contacts from SCIP"
+
+    print("contacts=", d)
+    d = cc_email_list
+
+    if to_email == '':
+        return None, None
+    elif len(cc_email_list) > 0:
+        if to_email in d:
+            d.remove(to_email)
+            if len(d) == 0:
+                d = None
+    else:
+        d = None
+
+    return to_email, d
+
+
+def paragon(vc, to, cc, q, sub, file, blurb):
+    strt_time = datetime.datetime.now()
+    to_email = ''
+    cc_email = ''
+    if str(cc).strip() == 'nan':
+        cc = ''
+    print("----------------------------------------------------------------------")
+
+    if str(to).strip() == 'nan' or len(to) == 0:
+        # read contacts from SCIP if the 'to_email_id' is blank in the input file
+        contacts = list(scip(str(row["vendor_code"]).strip()))
+        print("cc=", cc)
+        print("contacts=", contacts)
+        print("Vendor Code=", vc)
+        if contacts[0] is None:
+            return [vc, '', '', q, sub, "", "No contacts found in SCIP"]
+        else:
+            print("Contacts =", contacts)
+            # first email id in the list should be in 'To'
+            to_email = contacts[0]
+            if contacts[1] is not None:
+                cc_email = ",".join(contacts[1]) + "," + str(cc)
+            elif len(str(cc).strip()) > 0:
+                cc_email = str(cc).strip()
+            print("cc_email=", cc_email)
+            print("to_email=", to_email)
+    else:
+        to_email = str(to).strip()
+        cc_email = str(cc).strip()
+        contacts = ''
+    print("cc_email=", cc_email)
+    print("to_email=", to_email)
+
+    try:
+        # if 1 == 1:
+        if region_code == '1':
+            browser.get('https://paragon-na.amazon.com/hz/create-case')
+
+        if region_code == '2':
+            browser.get('https://paragon-eu.amazon.com/hz/create-case')
+
+        if region_code == '3':
+            browser.get('https://paragon-fe.amazon.com/hz/create-case')
+        
+        final_em_list = [to_email] + cc_email.split(",")
+        for a, b in enumerate(final_em_list):
+            WebDriverWait(browser, 60).until(EC.visibility_of_element_located((By.XPATH, '//*[@id="katal-id-0"]')))
+            
+            browser.find_element(By.XPATH, '//*[@id="katal-id-0"]').send_keys(b)
+            time.sleep(3)
+
+            items = browser.find_elements(By.CLASS_NAME, 'additional-customer-info')
+            wait_time = 20
+            while wait_time >= 0 and len(items) == 0:
+                time.sleep(1)
+                wait_time = wait_time - 1
+                items = browser.find_elements(By.CLASS_NAME, 'additional-customer-info')    
+            
+            for item in items:
+                item.click()
+                break
+            
+            if items : break
+            
+            browser.find_element(By.XPATH, '//*[@id="katal-id-0"]').clear()
+            time.sleep(1)
+            
+        print("len(items)=", len(items))
+        if len(items) <= 0:
+            return [vc, '', contacts, q, sub, "", "No contacts available in Paragon tool"]
+        
+        # queue
+        # selecting from mail in the dropdown
+        selectClass = "option-inner-container"
+        headerClass = "select-header"
+        class_name = 'header-row-text'
+        WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, class_name)))
+
+        browser.find_element(By.CLASS_NAME, headerClass).click()
+        innerElements = browser.find_elements(By.CLASS_NAME, selectClass)
+
+        mailFound = False
+        for element in innerElements:
+            if mailFound:
+                break
+            options = element.find_elements(By.CLASS_NAME, "option")
+            for option in options:
+                if str(option.text).strip() == q:
+                    option.click()
+                    mailFound = True
+                    break
+        if not mailFound:
+            return [vc, to_email, contacts, q, sub, "", "Queue not available. Please check if you have access to the queue."]
+        time.sleep(1)
+
+        # selecting from mail in the dropdown
+        element_id = 'katal-id-5'
+        script = f"document.getElementById('{element_id}').value='{q}'"  # using execute script as it is an hidden element
+        browser.execute_script(script)
+        time.sleep(1)
+        class_name = 'header-row-text'
+        script = f"document.getElementsByClassName('{class_name}')[0].innerText='{q}'"
+        browser.execute_script(script)
+        time.sleep(0.5)
+
+        # to
+        e1 = browser.find_element(By.XPATH, '//*[@id="input-group-tags"]')
+        e1.send_keys(Keys.BACKSPACE)
+        time.sleep(0.5)
+        # print("REMOVING TO EMAIL")
+        browser.find_element(By.XPATH, '//*[@id="input-group-tags"]').send_keys(to_email)
+        # print("CLEARING THE TO EMAIL")
+        time.sleep(0.5)
+        e2 = e1.send_keys(Keys.TAB)
+        time.sleep(0.5)
+
+        # CC
+        if len(cc_email) > 0:
+            mailid_area = browser.find_elements(By.ID,"input-group-tags")  # since cc and to has same xpath and class we are getting all elements with x path as list and selecting apprpritae one with index
+            cc_area = mailid_area[1]
+            cc_area.send_keys(str(cc_email))
+
+        # subject
+        browser.find_element(By.XPATH, '//*[@id="katal-id-7"]').send_keys(str(sub) + str(vc))
+        time.sleep(0.5)
+
+        # blurb
+        browser.find_element(By.XPATH, '//*[@id="body-email-body"]/div[1]/textarea').send_keys(blurb)
+        time.sleep(3)
+
+        # attachment
+        try:
+            browser.find_element(By.XPATH, "//input[@class='custom-file-input']").send_keys(location + str(vc).strip() + '.xlsx')
+        except Exception:
+            return [vc, to_email, contacts, q, sub, "", "Error while attaching file."]
+        time.sleep(2)
+
+        # click on Pending Merchant Action
+        # WebDriverWait(browser, 10).until(EC.visibility_of_element_located((By.XPATH, '//*[@id="case-composer-area"]/div[14]/div/div/div/div/kat-radiobutton-group/div[2]/kat-radiobutton[3]/div/div[1]/span')))
+        #browser.find_element_by_xpath('//*[@id="case-composer-area"]/div[14]/div/div/div/div/kat-radiobutton-group/div[2]/kat-radiobutton[2]/div/div[1]/span').click()
+        time.sleep(2)
+        if paragon_status == "1":
+            # WebDriverWait(browser, 10).until(EC.visibility_of_element_located((By.XPATH,'//*[@id="case-composer-area"]/div[14]/div/div/div/div/kat-radiobutton-group/div[2]/kat-radiobutton[3]/div/div[1]/span')))
+            browser.find_element(By.XPATH, "//kat-label[@class='text']//*[normalize-space()='Resolved']/..").click()
+            time.sleep(2)
+
+        # click on review case
+        browser.find_element(By.XPATH, "//*[normalize-space()='Review Case']").click()
+        time.sleep(2)
+        
+        # click on create case button
+        browser.find_element(By.XPATH, '//*[@id="review-case-composer"]/div/div/div[4]/kat-button[1]/button').click()
+        time.sleep(2)
+        url = browser.current_url
+        wait = 15
+        while wait >= 0 and "caseId=" not in str(url):
+            wait = wait - 1
+            time.sleep(1)
+            url = browser.current_url
+
+        if wait <= 0:
+            print("Exception occurred while creating the case")
+            # delete vendor specific excel file
+            try:
+                os.remove(location + str(vc).strip() + '.xlsx')
+            except Exception:
+                print("Error while deleting file:" + str(vc).strip() + '.xlsx' + ". File not found")
+            return [vc, to_email, contacts, q, sub, "", "Exception occurred while creating the case"]
+
+        caseId = str(url).partition("caseId=")[2]
+        print("caseId=", caseId)
+
+    except Exception:
+        print("Exception occurred while creating the case")
+        # delete vendor specific excel file
+        try:
+            os.remove(location + str(vc).strip() + '.xlsx')
+        except Exception:
+            print("Error while deleting file:" + str(vc).strip() + '.xlsx' + ". File not found")
+
+        return [vc, to_email, contacts, q, sub, "", "Exception occurred while creating the case"]
+
+    # delete vendor specific excel file
+    try:
+        os.remove(location + str(vc).strip() + '.xlsx')
+    except Exception:
+        print("Error while deleting file:" + str(vc).strip() + '.xlsx' + ". File not found")
+
+    return [vc, to_email, contacts, q, sub, caseId, "Email sent", strt_time, datetime.datetime.now()]
+
+
+print("********************************************************************************************")
+print("Instock Operations Automation – [EMP] – [Proactive/Reactive] – [Vendor Outreach Task]")
+print("SIM: https://issues.amazon.com/RBSIA-440")
+print("Start Time:", datetime.datetime.now())
+print("*********************************************************************************************")
+start_time = datetime.datetime.now()
+
+
+try:
+    # reading vendor vendorDetails.xlsx
+    path = location + "input_attachment.xlsx"
+    df_vendorDtls = pd.read_excel(path, dtype=str)
+
+    # reading vendor code from input file
+    path = location + "input_email_details.xlsx"
+    df = pd.read_excel(path, dtype=str)
+
+    # reading blurb from the word document
+    txt = docx2txt.process(location + "input_email_blurb.docx")
+
+except Exception:
+    print("Please check if the input files are available at ", location)
+
+# Delete output file if already exists
+try:
+    if os.path.isfile(location + "output.xlsx"):
+        # If file with the same name exists already then delete that file
+        os.remove(location + "output.xlsx")
+except Exception:
+    print("Please close the output.xlsx file and try again.")
+
+r = 0
+c = 0
+workbook = xlsxwriter.Workbook(location + "output.xlsx")
+worksheet = workbook.add_worksheet('Paragon')
+worksheet.write(r, c, "vendor_code")
+c = c + 1
+worksheet.write(r, c, "to_email_id")
+c = c + 1
+worksheet.write(r, c, "cc_email_list")
+c = c + 1
+worksheet.write(r, c, "queue")
+c = c + 1
+worksheet.write(r, c, "subject")
+c = c + 1
+worksheet.write(r, c, "case_id")
+c = c + 1
+worksheet.write(r, c, "status")
+c = c + 1
+worksheet.write(r, c, "start_time")
+c = c + 1
+worksheet.write(r, c, "end_time")
+out = []
+try:
+
+# if 1 == 1:
+    unique_vendors = []
+    # df_output = pd.DataFrame(columns=["vendor_code", "to_email_id", "cc_email_list", "queue", "subject", "case_id", "status"])
+    for index, row in df.iterrows():
+        # print("inside for loop vendor code", str(row["vendor_code"]))
+        if str(row["vendor_code"]).strip() not in unique_vendors:
+            unique_vendors.extend([row["vendor_code"]])
+            result_df = df_vendorDtls[df_vendorDtls['vendor_code'] == row["vendor_code"]]
+            # print("result_df is empty", result_df.empty)
+            if result_df.empty:
+
+                r = r + 1
+                c = 0
+                worksheet.write(r, c, row["vendor_code"])
+                c = c + 1
+                worksheet.write(r, c, '')
+                c = c + 1
+                worksheet.write(r, c, '')
+                c = c + 1
+                worksheet.write(r, c, row['queue'])
+                c = c + 1
+                worksheet.write(r, c, row['subject'])
+                c = c + 1
+                worksheet.write(r, c, '')
+                c = c + 1
+                worksheet.write(r, c, 'Attachment details unavailable for the vendor in input_attachment.xlsx file')
+            else:
+                # determining the name of the file
+                file_name = str(row["vendor_code"]).strip() + '.xlsx'
+                # check if file already exists
+                if os.path.isfile(location + file_name):
+                    # If file with the same name exists already then delete that file
+                    os.remove(location + file_name)
+                # saving the excel
+                result_df.to_excel(location + file_name, index=False)
+
+                out = paragon(str(row["vendor_code"]), str(row["to_email_list"]), str(row["cc_email_list"]), str(row["queue"]), str(row["subject"]), file_name, txt)
+                c = 0
+                r = r + 1
+                # print("writing output")
+                for o in out:
+                    worksheet.write(r, c, str(o))
+                    c = c + 1
+                # print("next iteration")
+
+except Exception:
+    print("Unknown Exception")
+workbook.close()
+
+browser.quit()
+end_time = datetime.datetime.now()
+print("\n\n ")
+print("*******************************************************************************************************")
+print("Instock Operations Automation – [EMP] – [Proactive/Reactive] – [Vendor Outreach Task]")
+print("SIM: https://issues.amazon.com/RBSIA-440")
+print("End Time:", datetime.datetime.now())
+print("Processed ", len(df), " vendors in ", end_time - start_time)
+print("*********************************************   END    ************************************************")
