@@ -6,7 +6,6 @@ quantity and Cost update asin_po wise
 
 """
 
-
 import os
 import time
 import pandas as pd
@@ -47,7 +46,7 @@ def open_chrome():
     })
     driver = webdriver.Chrome(service=service, options=options)
     time.sleep(1)
-	for handle in driver.window_handles:
+    for handle in driver.window_handles:
         driver.switch_to.window(handle)
         if "chrome://new-tab-page/" == driver.current_url:
             break
