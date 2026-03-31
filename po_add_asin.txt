@@ -1,3 +1,4 @@
+print("Hello")
 import os
 import time
 import pandas as pd
@@ -36,6 +37,11 @@ def cookie_management():
     return driver
 
 driver = cookie_management()
+time.sleep(2)
+for handle in driver.window_handles:
+    driver.switch_to.window(handle)
+    if "chrome://new-tab-page/" == driver.current_url:
+        break
 
 #Reading PO from excel
 df=pd.read_excel(f"input.xlsx", dtype=str)
