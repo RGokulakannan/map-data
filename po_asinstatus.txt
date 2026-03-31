@@ -32,7 +32,6 @@ def cookie_management():
         "safebrowsing.enabled": True
     })
     driver = webdriver.Chrome(service=service, options=options)
-    driver.maximize_window()
     return driver
 
 
@@ -43,6 +42,7 @@ for handle in driver.window_handles:
     if "chrome://new-tab-page/" == driver.current_url:
         break
 
+driver.maximize_window()
 start_time = time.time()
 
 # program begins
@@ -99,6 +99,7 @@ for a,b in df.iterrows():
                 date_sub = 'Within the Last Month'
             case _:
                 date_sub = 'not found'
+                continue
             
         # Launch home page
         driver.get('https://procurementportal-eu.corp.amazon.com/bp/home')
@@ -108,21 +109,38 @@ for a,b in df.iterrows():
         time.sleep(1)
         driver.execute_script("window.scrollBy(0, 400);")
         
-        cli = driver.execute_script('return document.querySelector("#ViewAsinSearch_AsinBox > kat-dropdown").shadowRoot.querySelector("#katal-id-4")')
+        script = f"""
+        // Get the kat-dropdown element (not the shadow DOM header)
+        const dropdown = document.querySelector("#ViewAsinSearch_AsinBox > kat-dropdown");
+
+        // Click to open it first (if needed to load options)
+        // dropdown.shadowRoot.querySelector("[part='dropdown-header']").click();
+
+        // Wait for options to load
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Now set the value on the kat-dropdown element
+        dropdown.value = '{b['mp']}';
+
+        // Dispatch events on the kat-dropdown element (not the header)
+        dropdown.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        dropdown.dispatchEvent(new CustomEvent('kat-change', {{ bubbles: true, detail: {{ value: '{b['mp']}' }} }}));
+        """
+        driver.execute_script(script)
+        time.sleep(2)
         
-        driver.execute_script('arguments[0].click();',cli)
-        
-        cli_1 = driver.execute_script('return document.querySelector("#ViewAsinSearch_AsinBox > kat-dropdown").shadowRoot.querySelector("div > div:nth-child(3) > div > div.option-inner-container > div > slot:nth-child(2)")')
-        
-        cli_2 = cli_1.find_elements(By.TAG_NAME,'kat-option')
-        
-        for c in cli_2:
-            if((c.text).lower() == (b['mp']).lower()):
-                c.click()
-                break
-        
-        driver.find_element(By.XPATH,'/html/body/div/div/div/div/div[2]/div[2]/div/div/div/div/div[1]/div/div/div[2]/div/div/div[2]/div/table/tbody/tr[1]/td[2]/kat-button').click()
-        
+        gobt = driver.execute_script('return document.querySelector("#ViewAsinSearch_AsinGo > kat-button").shadowRoot.querySelector("button")')
+        gobt.click()
+
+        WebDriverWait(driver, 120, poll_frequency=3).until(EC.visibility_of_element_located((By.ID, 'AsinSearch_POs_Form_form_submittedDateRange_header')))
+        time.sleep(1)
+
+        element = driver.find_element(By.XPATH, f"//input[@aria-label='{date_sub}']")
+        time.sleep(0.5)
+        driver.execute_script("arguments[0].click();", element)
+        time.sleep(0.5)
+
+        driver.find_element(By.ID, "AsinSearch_POs_Form_form_submit").click()
         tab_head = WebDriverWait(driver,60).until(EC.visibility_of_element_located((By.XPATH,'/html/body/div/div/div/div/div[2]/div/div[4]/div/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div/div/div/div/div/div/div[1]/div/div')))
         
         # Clicking on choosing month time range
