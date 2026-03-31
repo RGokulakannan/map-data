@@ -23,7 +23,7 @@ def cookie_management():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-gpu')
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    service = Service(ChromeDriverManager().install())
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
     download_path = "C:\\Users\\"+user_name+"\\Downloads"
     options.add_experimental_option("prefs", {
         "download.default_directory": download_path,
