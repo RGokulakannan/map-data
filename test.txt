@@ -1,147 +1,149 @@
+"""
+Ramalingam, Sruthilaya _sruthil
+Saha Ghosh, Sahelee _sasahele
+
+quantity and Cost update asin_po wise
+
+1. ++ updating ack code
+
+"""
+
+
+import os
+import time
 import pandas as pd
-import xlwings as xw
+import sys
 
-"""
-dependency file
-1. NR_Books.xlsx
-2. Mapped_Pricing.xlsx
-3. output_combined.xlsx
+from tqdm import tqdm
 
-"""
+from selenium import webdriver
+from selenium.webdriver import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
-# open the excel file for doing magic
-app = xw.App(visible=False)
-wb = xw.Book("NR_Books.xlsx")
+user_name = os.getlogin()
+startTime = time.time()
 
-# Reading the necessary Excel files
-df_price = pd.read_excel("Mapped_Pricing.xlsx", dtype=str)
-df_bento = pd.read_excel("BentoExport.xlsx")
-df_asin_pre = pd.read_excel("output_combined.xlsx", sheet_name="ASIN Present")
-df_nma = pd.read_excel("output_combined.xlsx", sheet_name="No Match ASIN")
+def open_chrome():
+    profile = 'Default'
+    profile_path = f'C:\\Users\\{user_name}\\AppData\\Local\\Google\\Chrome\\User Data\\Default'
+    options = Options()
+    options.add_argument(f'user-data-dir={profile_path}')
+    options.add_argument(f'--profile-directory={profile}')
+    options.add_argument('--start-maximized')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
+    time.sleep(2)
+    for handle in driver.window_handles:
+        driver.switch_to.window(handle)
+        if "chrome://new-tab-page/" == driver.current_url:
+            break
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
 
-# block of query -1
-df_price = df_price[df_price["is_equal"] == "True"]
-df_bento_filtered = df_bento[df_bento["Status"] == "FILTERED"]
-df_bento = df_bento[df_bento["Status"] == "SUCCESS"]
 
 
-query = ["ean",    "asin",    "avg_inv_cost",    "on_hand_quantity",    "current_pricing",    "pricing_enddate",
-        "recent comp. match",    "competitor_price",    "our_price_with_tax",    "is_retail",    "po comfirmed qty"
-    ]
+rn = input("""1. na
+2. fe
+3. eu
+Choose the region by number input: """)
 
-df_fq_1 = pd.DataFrame(columns=query)
-target_cols = ["avg_inv_cost", "current_pricing", "recent comp. match", "competitor_price", "our_price_with_tax"]
-for col in target_cols:
-    df_fq_1[col] = df_price["avg_inv_cost"]
-df_fq_1[["ean","asin","on_hand_quantity","po comfirmed qty"]] = df_price[["ean", "asin", "on_hand_quantity",  "on_po_qty"]]
 
-df_fq_2 = pd.DataFrame(columns=query)
-df_2 = df_bento[~df_bento['ASIN'].isin(df_fq_1['asin'])]
-df_2 = df_2.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin', how='left')
-
-df_query = pd.concat([df_fq_1, df_2], ignore_index=True)
-df_query["is_retail"] = "yes"
-df_query = df_query.astype("string")
-df_query['ean'] = df_query['ean'].astype(str).str.replace(r'\.0$', '', regex=True)
-
-# block of query -0
-
-# Working on Issues PO errors -1
-print("Issue PO error sheet", end=", ")
-ipe_sht = wb.sheets["Issues PO errors"]
-# Clear autofilter if it exists
-if ipe_sht.api.AutoFilter:
-    ipe_sht.api.AutoFilter.ShowAllData()
+if rn not in ["1", "2", "3"]:
+    print("Invalid Selection")
+    time.sleep(10)
+    sys.exit()
     
-df_ipe = ipe_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
-df_ipe = df_ipe.astype("string")
-df_ipe['ean'] = df_ipe['ean'].astype(str).str.replace(r'\.0$', '', regex=True)
+rn_map = {
+    "1" : "na",
+    "2":"fe",
+    "3":"eu"
+}
 
-# Start from C1 (or any cell in column C)
-last_cell = ipe_sht.range('C1').end('down')
-last_row = last_cell.row
-ipe_sht.range(f"A2:G{last_row}").clear_contents()
+driver = open_chrome()
+df = pd.read_excel(f"PO_INPUT.xlsx")
 
-df_ipe = df_ipe.merge(df_query[['ean', 'asin']], on='ean', how='left')
+# looping over given PO
+for index, row in tqdm(df.iterrows(), total=len(df), desc="POs"):
+    # try:    
+        # to open the url in browser
+        html = "<html><body><h4>welcome</h4></body></html>"
+        driver.get("data:text/html;charset=utf-8," + html)
+        
+        driver.get(f'https://procurementportal-{rn_map[rn]}.corp.amazon.com/bp/action/confirmPo?poId={row['po']}')
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.CLASS_NAME,'react-grid-Viewport')))
+        # Get the entire h4 element
+        condition_element = driver.find_element(By.XPATH, "//h4[b[contains(., 'Condition:')]]")
+        # Extract the text, remove the label, and strip whitespace
+        condition_text = condition_element.text.replace("Condition:", "").strip()
+        df.at[index, "condition"] = condition_text
+        
+        condition_text = condition_text.replace(" ", "")
 
-df_ipe = df_ipe[df_ipe['asin'].isna() & df_ipe['check in march'].isna()]
+        if condition_text.lower() not in ["submitted", "completelyconfirmed", "partiallyconfirmed", "partiallycancelled"]:
+            continue
+        
+        WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH,"//button[text()='Filter Rows']"))).click()
+        time.sleep(0.4)
+        
+        driver.find_element(By.XPATH,'//div/div/div/div/div[1]/div[2]/div/div[1]/div[1]/div/div').click()
+        driver.find_element(By.XPATH,'//div[1]/div[1]/div/div/div[2]/input').send_keys(str(row['asin']) +'\n')
+        
+        time.sleep(0.4)
+                
+        li = driver.find_element(By.CLASS_NAME,'react-grid-Viewport').find_elements(By.TAG_NAME,'span')
+        
+        if (len(li)>0 and len(li)<15):
+            
+            try:
+                
+                # update the ack code
+                df.at[index, "ack_code"] = li[3].text                
+                action = ActionChains(driver)
+                action.double_click(li[3]).perform()
+                time.sleep(0.2)
+                driver.find_element(By.XPATH, "//button[starts-with(normalize-space(text()), 'AC:')]").click()
+                time.sleep(0.5)
 
-df_ipe = df_ipe.drop(columns=['asin'])
+                # handle the qty
+                if not pd.isna(row["quantity"]):
+                    df.at[index, "pre_qty"] = li[6].text
+                    action = ActionChains(driver)
+                    action.double_click(li[6]).send_keys(row["quantity"]).send_keys(Keys.ENTER).perform()
+                    time.sleep(0.2)
+                    df.at[index, "is_qty_updated"] = "Yes"
+                    
+                    
+                if not pd.isna(row["cost"]):
+                    df.at[index, "pre_cost"] = li[13].text
+                    action = ActionChains(driver)
+                    action.double_click(li[13]).send_keys(row["cost"]).send_keys(Keys.ENTER).perform()
+                    time.sleep(0.2)
+                    df.at[index, "is_cost_updated"] = "Yes"
+                        
+                WebDriverWait(driver,20, poll_frequency=1).until(EC.visibility_of_element_located((By.ID,'BottomButton-Submit'))).click()
+                WebDriverWait(driver, 20, poll_frequency=1).until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'POLE task launched! View status in')]")))
 
+            except Exception as e:
+                pass
+            
+    # except Exception as e:
+        # pass    
 
-df_bento_filtered = df_bento_filtered.merge(df_asin_pre[['ean', 'asin']], left_on='ASIN', right_on='asin', how='left')
+driver.quit()        
 
+df.to_excel(f"PO_Output.xlsx",index=False)     
 
-ipe_sht_col = ["ean", "Asin", "vendor", "PO ERROR", "error", "OWNING BUYER INPUT",	"check in march"]
-df_ipe1 = pd.DataFrame(columns=ipe_sht_col)
-df_ipe1[["ean", "Asin", "vendor", "error"]] = df_bento_filtered[["ean", "ASIN", "Vendor", "Validation Errors"]]
-df_ipe1["PO ERROR"] = "PO ERROR"
+endTime = time.time()
 
-df_ipe2 = pd.DataFrame(columns=ipe_sht_col)
-df_ipe2[["ean", "vendor"]] = df_nma[["ean", "vc"]]
-df_ipe2["PO ERROR"] = "PO ERROR"
+print("Operational Completed")
+print("Time Taken :", round((endTime-startTime)/60, 2), 'mins')
 
-df_ipe = pd.concat([df_ipe, df_ipe1, df_ipe2], ignore_index=True)
-
-ipe_sht.range("A2").options(index=False, header=False).value = df_ipe
-print("Ok")
-# Working on Issues PO errors -0
-
-
-
-# sit the df_query in the querydata sheet -1
-print("Query sheet", end=", ")
-querySht = wb.sheets["querydata"]
-if querySht.api.AutoFilter:
-    querySht.api.AutoFilter.ShowAllData()
-for table in querySht.api.ListObjects:
-        # print("Old Table Name:", table.Name)
-    # Rename the first table (or any specific one you want)
-    if table.Name.startswith('_'):  # Typical auto-generated names
-        table.Name = 'ASINTable'    # Choose your custom name
-        # print("Renamed to:", table.Name)
-querySht.range("A2").options(index=False, header=False).value = df_query
-print("Ok")
-# sit the df_query in the querydata sheet -0
-
-# working on Enter here sheet -1
-print("Enter here", end=", ")
-enter_sht = wb.sheets["ENTER HERE"]
-if enter_sht.api.AutoFilter:
-    enter_sht.api.AutoFilter.ShowAllData()
-df_enter_here = enter_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
-df_enter_here = df_enter_here.astype(str)
-
-df_enter_here = df_enter_here[df_enter_here["Status"] == "PO Requested"]
-print("Ok")
-# working on Enter here sheet -0
-
-# Working on PO Request Template -1
-print("PO Request Template", end=", ")
-prt_sht = wb.sheets["PO Request Template"]
-# Clear autofilter if it exists
-if prt_sht.api.AutoFilter:
-    prt_sht.api.AutoFilter.ShowAllData()
-last_row = prt_sht.range('E' + str(prt_sht.cells.last_cell.row)).end('up').row
-if last_row>2:
-    print(f"deleted E2 to E{last_row}", end=", ")
-    prt_sht.range(f"E2:E{last_row}").clear_contents()
-    
-prt_sht.range("E2").options(index=False, header=False).value = df_enter_here[["ISBN/EAN"]]
-df_prt = prt_sht.range("A1").expand().options(pd.DataFrame, header=1, index=False).value
-df_prt = df_prt.astype(str)
-
-df_prt = df_prt.dropna(subset=["EAN"])
-df_prt.drop(["Brand",	"Brand Code",	"EAN"], axis=1, inplace=True, errors='ignore')
-# df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'] = df_prt.loc[df_prt['Vendor'] == "N82X0", 'Quantity'].clip(upper=10)
-df_prt.to_excel("PO Request Template.xlsx", index=False)
-
-print("Ok")
-# Working on PO Request Template -0
-
-wb.save("NR_Books_Processed.xlsx")
-wb.close()
-app.quit()
-
-
-
+time.sleep(10)
