@@ -1,3 +1,4 @@
+print("Cost PO")
 """
 Ramalingam, Sruthilaya _sruthil
 Saha Ghosh, Sahelee _sasahele
@@ -41,11 +42,11 @@ def open_chrome():
     options.add_argument('--disable-gpu')
     service = Service("C:\\Users\\"+user_name+"\\driver\\chromedriver.exe")
     time.sleep(2)
+    driver = webdriver.Chrome(service=service, options=options)
     for handle in driver.window_handles:
         driver.switch_to.window(handle)
         if "chrome://new-tab-page/" == driver.current_url:
             break
-    driver = webdriver.Chrome(service=service, options=options)
     return driver
 
 
