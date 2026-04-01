@@ -1,0 +1,142 @@
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import re
+from datetime import datetime, timedelta
+
+def get_dates_list(times, date_str):
+
+    # Convert string to datetime
+    dt = datetime.strptime(str(date_str), "%Y-%m-%d %H:%M:%S")
+    # Check if weekday is Friday (5)
+    if dt.weekday() == 5:
+        dt += timedelta(days=1)
+    # Generate 4 weekly dates
+    weekly_dates = [dt + timedelta(weeks=i) for i in range(times)]
+
+    return [d.strftime("%m/%d/%Y") for d in weekly_dates]
+
+
+
+country_codes = {
+    "AE": 338801,
+    "SA": 338811,
+    "TR": 338851,
+    "EGY": 623225,
+    "ZA": 3433554
+}
+
+while True:
+    country = input("Enter the Market place\n" \
+    "AE\n" \
+    "SA\n" \
+    "TR\n" \
+    "EGY\n" \
+    "ZA\n" \
+    "type any one and press enter key : ")
+
+    country = country.upper()
+
+    FcstGroupId = country_codes.get(country)
+
+    if FcstGroupId:
+        break
+    else:
+        print()
+        print("*" * 8)
+        print("Choose correct value")
+
+# Locate the file
+file_path = Path("Forecasting_Template.xlsx")
+if file_path.exists():
+    file_loc = file_path
+else:
+    print("")
+    print("*" * 8)
+    print("Default name not found : Forecasting_Template.xlsx")
+    print("Looking all the files please choose the correct file number")
+    # read my file
+    folder_path = Path('.')
+    choose_file = dict()
+
+    # Recursive filter by extension
+    for num, file in enumerate(folder_path.rglob('*.xlsx'), start=1):
+        print(f"{num}. {file}")
+        choose_file.update({num:file})
+    
+    file_no = int(input("Enter the file number to read : "))
+    file_path = choose_file.get(file_no)
+
+
+df = pd.read_excel(
+    file_path,
+    skiprows=1,      # skip first row → start from row 2
+    usecols="A:G"    # read only columns A to G
+)
+
+fov_factor = pd.read_excel(
+    file_path,
+    usecols="I",   # select column I
+    skiprows=1,    # skip row 1 → start at row 2
+    nrows=1,       # read only 1 row
+    header=None
+)
+
+text = fov_factor.at[0,8]
+matches = re.findall(r"\*\s*(\d+(?:\.\d+)?)", text)
+p50 = float(matches[0])
+p90 = float(matches[1])
+
+start_date = df.iloc[0, 4]
+week_count = df.iloc[:,5].max()
+week_list = get_dates_list(week_count, start_date)
+
+final_list = ['Asin', 'Reason', 'Quantile'] + week_list + ['FcstGroupId']
+
+final_df = pd.DataFrame(columns=final_list)
+
+
+# 1. Prepare final_df
+final_df['Asin'] = df['ASIN']
+final_df['Reason'] = df.iloc[:, 2]
+final_df['p70'] = df.iloc[:, 6].fillna(0)
+final_df['woc'] = df.iloc[:, 5].fillna(0)
+
+# 2. Combine p50 and p90
+df_combined = pd.concat([
+    final_df.assign(Quantile=50),
+    final_df.assign(Quantile=90)
+], ignore_index=True)
+
+# 3. Compute 'accross' column
+df_combined.loc[df_combined['Quantile'] == 90, 'fill'] = p90 * df_combined['p70']
+df_combined.loc[df_combined['Quantile'] == 50, 'fill'] = p50 * df_combined['p70']
+
+# 4. Columns to fill
+cols = df_combined.columns[3:week_count+3]
+
+# 5. Prepare numeric array to fill
+num_rows = len(df_combined)
+num_cols = len(cols)
+filled_array = np.zeros((num_rows, num_cols))  # numeric dtype
+
+# 6. Fill array row-wise according to 'woc'
+woc_values = df_combined['woc'].values.astype(int)  # ensure integer
+accross_values = df_combined['fill'].values.round(2)  # round to 2 decimals
+
+for i in range(num_rows):
+    fill_count = min(woc_values[i], num_cols)  # avoid overflow
+    filled_array[i, :fill_count] = accross_values[i]
+
+# 7. Assign back to DataFrame and round
+df_combined.loc[:, cols] = filled_array.round(2)
+
+col_drop = ['p70', 'woc', 'fill']
+df_combined = df_combined.drop(columns=col_drop)
+
+df_combined['FcstGroupId'] = FcstGroupId
+
+df_combined = df_combined.sort_values(by='Asin')
+
+# 8. Export to Excel
+df_combined.to_excel("output.xlsx", index=False, float_format="%.2f")
