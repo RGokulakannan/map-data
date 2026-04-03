@@ -6,7 +6,6 @@ import docx2txt
 import pandas as pd
 import datetime
 import xlsxwriter
-from requests_kerberos import HTTPKerberosAuth
 from selenium import webdriver
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -16,7 +15,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-kerberos_auth = HTTPKerberosAuth(mutual_authentication=OPTIONAL)
+
 user = os.getlogin()
 location = 'C:\\Users\\'+user+'\\Desktop\\Paragon\\'
 
