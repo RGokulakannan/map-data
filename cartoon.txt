@@ -1,0 +1,54 @@
+import pandas as pd
+
+df = pd.read_excel('input_stages.xlsx')
+
+cols = ['sw1', 'sw2', 'sw3', 'sw4', 'sw5', 'sw6', 'sw7']
+
+df[cols] = df[cols].mul(df['Allocation Quantity']/100, axis=0)
+
+df[[f"rDown_{c}" for c in cols]] = df[cols].apply(lambda x: (x // df['Vendor Carton Quantity']) * df['Vendor Carton Quantity'])
+df[[f"rUp_{c}" for c in cols]] = df[cols].apply(
+    lambda x: ((x // df['Vendor Carton Quantity']) + 1).where(
+        x // df['Vendor Carton Quantity'] < x,  # condition
+        x                                     # else
+    ) * df['Vendor Carton Quantity']
+)
+
+cols = ['Vendor Carton Quantity', 'Allocation Quantity',
+    'sw1', 'rDown_sw1', 'rUp_sw1',
+    'sw2', 'rDown_sw2', 'rUp_sw2',
+    'sw3', 'rDown_sw3', 'rUp_sw3',
+    'sw4', 'rDown_sw4', 'rUp_sw4',
+    'sw5', 'rDown_sw5', 'rUp_sw5',
+    'sw6', 'rDown_sw6', 'rUp_sw6',
+    'sw7', 'rDown_sw7', 'rUp_sw7'
+]
+
+
+df = df[cols]
+
+rdown_cols = [
+    'rDown_sw1', 'rDown_sw2', 'rDown_sw3',
+    'rDown_sw4', 'rDown_sw5', 'rDown_sw6',
+    'rDown_sw7'
+]
+
+rup_cols = [
+    'rUp_sw1', 'rUp_sw2', 'rUp_sw3',
+    'rUp_sw4', 'rUp_sw5', 'rUp_sw6',
+    'rUp_sw7'
+]
+
+df['rDown_sum'] = df[rdown_cols].sum(axis=1)
+df['rUp_sum'] = df[rup_cols].sum(axis=1)
+
+cols = ['sw1', 'sw2', 'sw3', 'sw4', 'sw5', 'sw6', 'sw7']
+
+# Drop those columns
+df = df.drop(columns=cols)
+
+df = df.dropna(axis=1, how='all')
+
+df.to_excel("output.xlsx", index=False)
+
+
