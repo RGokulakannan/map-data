@@ -61,7 +61,7 @@ def cookie_management():
 browser = cookie_management()
 time.sleep(1)
 for handle in browser.window_handles:
-    broswer.switch_to.window(handle)
+    browser.switch_to.window(handle)
     if "chrome://new-tab-page/" == browser.current_url:
         break
 
