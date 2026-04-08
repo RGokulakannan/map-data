@@ -88,7 +88,7 @@ p50 = float(matches[0])
 p90 = float(matches[1])
 
 start_date = df.iloc[0, 4]
-week_count = df.iloc[:,5].max()
+week_count = int(df.iloc[:,5].max())
 week_list = get_dates_list(week_count, start_date)
 
 final_list = ['Asin', 'Reason', 'Quantile'] + week_list + ['FcstGroupId']
