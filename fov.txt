@@ -74,7 +74,7 @@ df = pd.read_excel(
     usecols="A:G"    # read only columns A to G
 )
 
-df = df.dropna(subset=['Asin'])
+df = df.dropna(subset=['ASIN'])
 
 fov_factor = pd.read_excel(
     file_path,
