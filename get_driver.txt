@@ -64,7 +64,9 @@ def download_driver():
 
     zip_path = DRIVER_DIR / "chromedriver.zip"
     driver_path = DRIVER_DIR / "chromedriver.exe"
-    driver_path.unlink()
+    # ✅ Fix: Only delete if the file actually exists
+    if driver_path.exists():
+        driver_path.unlink()
 
     version = get_chrome_version()
     bit = get_chrome_bitness()
